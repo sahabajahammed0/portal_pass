@@ -1,4 +1,5 @@
 import os
+import pytest
 import random
 import pytest
 from faker import Faker
@@ -31,7 +32,7 @@ def test_tc01_empty_form_validation(
     event_creation_page.verify_validation_errors()
     print("✅ TC01: Successfully verified empty event creation form validation errors.")
 
-
+@pytest.mark.regression
 def test_tc02_create_event_with_fake_data(
     event_repo,
     event_creation_page,
@@ -107,7 +108,7 @@ def test_tc02_create_event_with_fake_data(
     event_creation_page.verify_event_in_list(fake_title)
     print(f"✅ TC02: Successfully verified creation of event '{fake_title}'.")
 
-
+@pytest.mark.regression
 def test_tc03_search_created_event(
     event_repo,
     event_creation_page,
