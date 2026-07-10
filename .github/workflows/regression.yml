@@ -49,7 +49,6 @@ jobs:
       - name: Run Regression Tests
         run: |
           pytest tests \
-            -m regression \
             --html=reports/report.html \
             --self-contained-html
 
@@ -58,14 +57,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Regression-Report
-          path: reports/
+          path: reports/report.html
 
       - name: Upload Screenshots
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Failed-Screenshots
-          path: screenshots/
+          path: screenshots/failed/
 
       - name: Upload Logs
         if: always()
