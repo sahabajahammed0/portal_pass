@@ -9,3 +9,5 @@ pytest-xdist==3.8.0
 
 PyYAML==6.0.2
 python-dotenv==1.1.1
+
+Faker==37.5.3
