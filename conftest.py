@@ -25,7 +25,7 @@ def page():
         else:
             page = browser.new_page(no_viewport=True)
 
-        page.goto("https://portal-pass-admin.weavers-web.com/login")
+        page.goto("https://portal-pass-admin.weavers-web.com/login", wait_until="networkidle")
 
         yield page
 
