@@ -3,13 +3,14 @@ from playwright.sync_api import sync_playwright
 from pages.login_page import LoginPage
 from pages.category_management import CategoryManagement
 from pages.dashboard_page import DashboardPage
+from pages.event_creation_page import EventCreationPage
 
 
 @pytest.fixture
 def page():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        page = browser.new_page()
+        browser = p.chromium.launch(headless=False, args=["--start-maximized"])
+        page = browser.new_page(no_viewport=True)
         page.goto("https://portal-pass-admin.weavers-web.com/login")  # Replace with your application's URL
 
         yield page
@@ -29,6 +30,10 @@ def category_page(page):
 @pytest.fixture
 def dashboard_page(page):
     return DashboardPage(page)
+
+@pytest.fixture
+def event_creation_page(page):
+    return EventCreationPage(page)
 
 
 @pytest.fixture
