@@ -1,5 +1,7 @@
+import pytest
 
-def test_add_edit_delete_category_flow(
+@pytest.mark.regression
+def test_01_category_management_regression_flow(
     login_page,
     category_page,
     dashboard_page,

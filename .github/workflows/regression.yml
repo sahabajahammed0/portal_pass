@@ -40,12 +40,15 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        pip install -r requirements.txt
+        python -m pip install -r requirements.txt
+
+    - name: Install Playwright Browsers
+      run: |
+        python -m playwright install chromium
 
     - name: Run Regression Tests
       run: |
         pytest tests/ \
-        --alluredir=reports/allure-results \
         --html=reports/report.html \
         --self-contained-html
 
@@ -55,13 +58,6 @@ jobs:
       with:
         name: HTML-Report
         path: reports/report.html
-
-    - name: Upload Allure Results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: Allure-Results
-        path: reports/allure-results
 
     - name: Upload Screenshots
       uses: actions/upload-artifact@v4

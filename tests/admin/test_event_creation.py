@@ -1,4 +1,5 @@
 import os
+import pytest
 import random
 from faker import Faker
 from playwright.sync_api import expect
@@ -7,7 +8,7 @@ fake = Faker()
 
 # Global variable to share the created event's name from TC02 to TC03
 created_event_title = None
-
+@pytest.mark.regression
 def test_tc01_empty_form_validation(
     login_page,
     dashboard_page,
@@ -34,7 +35,7 @@ def test_tc01_empty_form_validation(
     event_creation_page.verify_validation_errors()
     print("✅ TC01: Successfully verified empty event creation form validation errors.")
 
-
+@pytest.mark.regression
 def test_tc02_create_event_with_fake_data(
     login_page,
     dashboard_page,
@@ -107,7 +108,7 @@ def test_tc02_create_event_with_fake_data(
     event_creation_page.verify_event_in_list(fake_title)
     print(f"✅ TC02: Successfully verified creation of event '{fake_title}'.")
 
-
+@pytest.mark.regression
 def test_tc03_search_created_event(
     login_page,
     dashboard_page,
