@@ -32,7 +32,7 @@ class EventCreationPage:
         self.custom_styled_container = page.locator(
             ".relative.flex.items-center.gap-2\\.5.w-full.bg-white.rounded-\\[50px\\].border.border-solid.px-4\\.25.py-3\\.75.transition-colors.duration-200.border-\\[\\#ddd\\].opacity-50"
         ).first
-
+        
         # Submission Locator
         self.submit_btn = page.get_by_test_id("event-create-submit-btn")
         
@@ -67,13 +67,16 @@ class EventCreationPage:
     def fill_venue(self, venue_name: str):
         """Fills the venue search input and selects the first option from suggestions."""
         self.venue_search_input.fill(venue_name)
-        self.page.wait_for_timeout(1500) # Wait for suggestions to render
-        
-        # Try to click matching suggestion button, fallback to ArrowDown and Enter
-        suggestions = self.page.locator(f"button:has-text('{venue_name}')")
-        if suggestions.count() > 0:
-            suggestions.first.click()
-        else:
+        # Wait for the suggestions container to become visible
+        container = self.page.locator(".absolute.top-full:has-text('System Places')")
+        try:
+            container.wait_for(state="visible", timeout=4000)
+            # Click the first suggestion button inside the container
+            container.locator("button").first.click()
+            print("Successfully clicked autocomplete dropdown suggestion.")
+        except Exception:
+            # Fallback to ArrowDown and Enter if container doesn't load/appear
+            print("Suggestions container did not appear; using keyboard fallback.")
             self.page.keyboard.press("ArrowDown")
             self.page.keyboard.press("Enter")
         self.page.wait_for_timeout(1000)
@@ -97,17 +100,21 @@ class EventCreationPage:
         self.start_time_input.fill(start_time)
         self.end_time_input.fill(end_time)
 
-    def select_random_category(self):
-        """Opens the category dropdown and selects a random category option."""
+    def select_random_category(self) -> str:
+        """Opens the category dropdown, selects a random category option, and returns its name."""
         import random
         self.category_dropdown.click()
         self.page.wait_for_timeout(500)
         options = self.page.locator("button[role='option']")
         count = options.count()
+        selected_name = ""
         if count > 0:
             random_idx = random.randint(0, count - 1)
-            options.nth(random_idx).click()
+            selected_option = options.nth(random_idx)
+            selected_name = selected_option.inner_text().strip()
+            selected_option.click()
         self.page.wait_for_timeout(500)
+        return selected_name
 
     def fill_description(self, description: str):
         """Fills the description in the Tiptap rich text editor."""
