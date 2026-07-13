@@ -42,8 +42,8 @@ def test_tc02_create_event_with_fake_data(
     """
     global created_event_title, created_event_category, created_event_venue
 
-    # Pick a random venue from a list of major cities
-    venues = ["New York", "Los Angeles", "Chicago", "London", "Paris", "Tokyo", "Sydney", "Berlin", "Toronto"]
+    # Pick a random venue from a list of verified System Places in the database
+    venues = ["New York", "Los Angeles", "Chicago", "Paris", "Sydney", "Berlin", "Toronto"]
     created_event_venue = random.choice(venues)
     print(f"📍 Selected venue: {created_event_venue}")
 
@@ -51,7 +51,8 @@ def test_tc02_create_event_with_fake_data(
     event_creation_page.click_create_event()
 
     # Pick a random image from data/images/ under 2.5 MB and upload it
-    image_dir = os.path.abspath("data/images")
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    image_dir = os.path.abspath(os.path.join(test_dir, "../../data/images"))
     safe_images = []
     for f in os.listdir(image_dir):
         if f.lower().endswith(('.png', '.jpg', '.jpeg')):
@@ -289,7 +290,27 @@ def test_tc06_edit_active_to_inactive(
     """
     global created_event_title, created_event_status
 
-    # 1. Locate the first row with SOURCE 'Manual Entry' and STATUS 'Active'
+    def log_response(response):
+        if "events" in response.url:
+            try:
+                status = response.status
+                method = response.request.method
+                if status >= 400:
+                    print(f"\n❌ API ERROR: {method} {status} {response.url}\nResponse Body: {response.text()}")
+                else:
+                    print(f"\n📡 API Success: {method} {status} {response.url}")
+            except Exception as e:
+                pass
+    page.on("response", log_response)
+
+    # 1. Search for the created event if available to ensure we edit the correct one and avoid page 1 empty state
+    if created_event_title:
+        print(f"🔍 Searching for event: '{created_event_title}'")
+        search_input = page.locator("input[placeholder='Search by title, venue, or location ...']")
+        search_input.fill(created_event_title)
+        page.wait_for_timeout(1000)
+
+    # Locate the target row with SOURCE 'Manual Entry' and STATUS 'Active'
     row = page.locator("tbody tr").filter(
         has=page.locator("td").nth(3).get_by_text("Manual Entry")
     ).filter(
@@ -318,16 +339,41 @@ def test_tc06_edit_active_to_inactive(
     print(f"Current Status text: '{status_text}'")
 
     if status_text == "Active":
-        print("Clicking status button to make Inactive...")
-        status_btn.click()
-        page.wait_for_timeout(500)
+        # Extract event ID from the URL (e.g. .../event/edit/1234)
+        event_id = page.url.split("/")[-1]
+        print(f"Clicking status button to make Inactive (Event ID: {event_id})...")
+        
+        # Attempt to click the button and wait for the response. If it times out (meaning the handler wasn't attached yet), try again.
+        max_attempts = 3
+        success = False
+        for attempt in range(1, max_attempts + 1):
+            try:
+                print(f"Status toggle attempt {attempt}...")
+                with page.expect_response(
+                    lambda r: f"/events/{event_id}" in r.url and r.request.method == "GET",
+                    timeout=5000
+                ):
+                    status_btn.click()
+                success = True
+                print("Status toggle successfully registered (API response received).")
+                break
+            except Exception as e:
+                print(f"Attempt {attempt} timed out waiting for API response. Retrying click...")
+                page.wait_for_timeout(1000)
+        
+        if not success:
+            # Fallback/final attempt without expect_response
+            status_btn.click()
+            page.wait_for_timeout(1000)
+            
         expect(status_btn.locator("span")).to_have_text("Inactive")
 
     # 5. Click the submit button (Update Event)
-    page.locator("//button[@type='submit']").click()
+    submit_btn = page.locator("[data-testid='event-edit-submit-btn']")
+    submit_btn.click()
 
     # Wait for the edit drawer to close (submit button becomes hidden)
-    page.locator("[data-testid='event-edit-submit-btn']").wait_for(state="hidden", timeout=10000)
+    submit_btn.wait_for(state="hidden", timeout=10000)
     print("Drawer successfully closed.")
 
     # Update global status if the edited event was our TC02 event

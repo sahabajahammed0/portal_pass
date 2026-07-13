@@ -65,20 +65,39 @@ class EventCreationPage:
         self.title_input.fill(title)
 
     def fill_venue(self, venue_name: str):
-        """Fills the venue search input and selects the first option from suggestions."""
-        self.venue_search_input.fill(venue_name)
-        # Wait for the suggestions container to become visible
+        """Fills the venue search input and selects the first option from 'System Places' suggestions."""
+        # Click the input field to focus
+        self.venue_search_input.click()
+        # Clear any existing text
+        self.page.keyboard.press("Control+A")
+        self.page.keyboard.press("Backspace")
+        
+        # Type the venue name sequentially to trigger the autocomplete dropdown
+        self.venue_search_input.press_sequentially(venue_name, delay=100)
+        
+        # Locate the suggestions container containing 'System Places'
         container = self.page.locator(".absolute.top-full:has-text('System Places')")
+        
         try:
-            container.wait_for(state="visible", timeout=4000)
-            # Click the first suggestion button inside the container
-            container.locator("button").first.click()
-            print("Successfully clicked autocomplete dropdown suggestion.")
-        except Exception:
-            # Fallback to ArrowDown and Enter if container doesn't load/appear
-            print("Suggestions container did not appear; using keyboard fallback.")
-            self.page.keyboard.press("ArrowDown")
-            self.page.keyboard.press("Enter")
+            # Wait for the System Places container to become visible
+            container.wait_for(state="visible", timeout=5000)
+            # Locate the first suggestion button inside the System Places section
+            suggestion_btn = container.locator("button").first
+            suggestion_btn.click()
+            print(f"✅ Successfully selected '{venue_name}' from System Places dropdown.")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not select '{venue_name}' from System Places. Attempting Google Places fallback...")
+            # Fallback to any dropdown container (e.g. Google Places) if System Places is not present
+            fallback_container = self.page.locator(".absolute.top-full")
+            try:
+                fallback_container.wait_for(state="visible", timeout=3000)
+                fallback_container.locator("button").first.click()
+                print("✅ Successfully selected from fallback dropdown suggestions.")
+            except Exception:
+                print("❌ Fallback suggestions did not appear. Attempting keyboard fallback.")
+                self.page.keyboard.press("ArrowDown")
+                self.page.keyboard.press("Enter")
+        
         self.page.wait_for_timeout(1000)
 
     def select_start_date(self, day: str):
