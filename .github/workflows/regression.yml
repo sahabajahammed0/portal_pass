@@ -6,7 +6,6 @@ on:
       - main
       - develop
 
-
   workflow_dispatch:
 
 jobs:
@@ -72,3 +71,13 @@ jobs:
         with:
           name: Logs
           path: logs/
+
+      - name: Upload Debug Login Page
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Debug-Login-Page
+          path: |
+            **/debug_login_page.png
+            **/debug_login_page.html
+          if-no-files-found: warn
