@@ -1,6 +1,7 @@
 import pytest
 import json
 import os
+import re
 from playwright.sync_api import sync_playwright
 
 from pages.admin.login_page import LoginPage
@@ -8,8 +9,9 @@ from pages.admin.category_management import CategoryManagement
 from pages.admin.dashboard_page import DashboardPage
 from pages.admin.event_creation_page import EventCreationPage
 
-# Path for saving session state
-STATE_FILE = os.path.abspath("state.json")
+# Absolute path to conftest.py's directory for robust path resolution on any machine
+CONFTEST_DIR = os.path.dirname(os.path.abspath(__file__))
+STATE_FILE = os.path.join(CONFTEST_DIR, "state.json")
 
 
 @pytest.fixture(scope="session")
@@ -53,10 +55,25 @@ def page(auth_state):
     """
     Function-scoped page fixture that reuses the captured session state.
     """
+    # Detect headless mode dynamically: check environment variable, fallback to True if no graphical display is present
+    headless_env = os.getenv("PLAYWRIGHT_HEADLESS", "").lower()
+    if headless_env in ["true", "1"]:
+        headless = True
+    elif headless_env in ["false", "0"]:
+        headless = False
+    else:
+        # Fallback to headless on Linux if DISPLAY is not set (e.g. CI/CD or headless server)
+        headless = not os.environ.get("DISPLAY")
+
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False, args=["--start-maximized"])
-        # Load the stored authentication state
-        context = browser.new_context(no_viewport=True, storage_state=auth_state)
+        if headless:
+            browser = p.chromium.launch(headless=True)
+            # Set a standard high-resolution viewport for headless runs to ensure consistent layout
+            context = browser.new_context(viewport={"width": 1920, "height": 1080}, storage_state=auth_state)
+        else:
+            browser = p.chromium.launch(headless=False, args=["--start-maximized"])
+            context = browser.new_context(no_viewport=True, storage_state=auth_state)
+
         page = context.new_page()
         # Direct navigation to dashboard (bypass login page)
         page.goto("https://portal-pass-admin.weavers-web.com/dashboard")
@@ -98,14 +115,16 @@ def event_repo(dashboard_page):
 
 @pytest.fixture
 def category_data():
-    with open("data/category.json", "r") as file:
+    data_path = os.path.join(CONFTEST_DIR, "data", "category.json")
+    with open(data_path, "r") as file:
         data = json.load(file)
     return data["categories"]
 
 
 @pytest.fixture
 def edit_category_data():
-    with open("data/edit_category.json", "r") as file:
+    data_path = os.path.join(CONFTEST_DIR, "data", "edit_category.json")
+    with open(data_path, "r") as file:
         return json.load(file)["categories"]
     
 # Screenshot if test case failed  it should automatic captured Screenshot/failed folder 
@@ -131,5 +150,6 @@ def pytest_runtest_makereport(item, call):
 
 @pytest.fixture
 def delete_category_data():
-    with open("data/delete_category.json", "r") as file:
+    data_path = os.path.join(CONFTEST_DIR, "data", "delete_category.json")
+    with open(data_path, "r") as file:
         return json.load(file)["categories"]
