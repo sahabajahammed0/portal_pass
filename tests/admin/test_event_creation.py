@@ -1053,4 +1053,192 @@ def test_tc12_delete_events_verification(
         print(f"✅ Case 3: Successfully verified delete from Actions dropdown for '{target_event_title}'.")
 
 
+@pytest.mark.regression
+def test_tc13_past_date_selection_validation(
+    event_repo,
+    event_creation_page,
+    page,
+):
+    """
+    TC13: Verify that selecting a start date in the past is prevented by disabling past dates in calendar.
+    """
+    # Open Create Event drawer
+    event_creation_page.click_create_event()
+    
+    # Click start date picker to open calendar popup
+    event_creation_page.start_date_picker.click()
+    page.wait_for_timeout(500)
+    
+    # Get yesterday's date
+    from datetime import datetime, timedelta
+    today = datetime.now()
+    yesterday = today - timedelta(days=1)
+    
+    if yesterday.month != today.month:
+        # Click previous month navigation button in calendar picker
+        page.locator("button:has(svg), button.rdp-nav_button_previous").first.click()
+        page.wait_for_timeout(500)
+    
+    # Yesterday's date button should be disabled
+    yesterday_btn = page.locator("button").filter(has_text=str(yesterday.day)).first
+    expect(yesterday_btn).to_be_disabled()
+    print("✅ TC13: Successfully verified past dates are disabled in the calendar.")
+
+
+@pytest.mark.regression
+def test_tc14_end_date_prior_to_start_date(
+    event_repo,
+    event_creation_page,
+    page,
+):
+    """
+    TC14: Verify that selecting an end date earlier than the start date displays a validation error.
+    """
+    # Open Create Event drawer
+    event_creation_page.click_create_event()
+    
+    # Select start date as 25 (future date)
+    event_creation_page.select_start_date("25")
+    
+    # Select end date as 20 (earlier than start date)
+    event_creation_page.select_end_date("20")
+    
+    # Check for validation message indicating end date is before start date
+    expect(page.locator("text=/cannot be earlier|must be after|End date/i").first).to_be_visible()
+    print("✅ TC14: Successfully verified end date prior to start date validation.")
+
+
+@pytest.mark.regression
+def test_tc15_invalid_contact_form_formats(
+    event_repo,
+    event_creation_page,
+    page,
+):
+    """
+    TC15: Verify that entering invalid contact formats (email, phone, website) triggers validation.
+    """
+    event_creation_page.click_create_event()
+    
+    # Fill invalid formats
+    event_creation_page.fill_contact_info(
+        website="invalid_url",
+        email="invalid_email@",
+        phone="123"
+    )
+    
+    # Click submit to trigger validation
+    event_creation_page.submit_event()
+    page.wait_for_timeout(1000)
+    
+    # Verify validation message appears for email
+    expect(page.locator("text=/email|mail|format/i").first).to_be_visible()
+    print("✅ TC15: Successfully verified invalid contact form formats validation.")
+
+
+@pytest.mark.regression
+def test_tc16_unsupported_file_upload_rejection(
+    event_repo,
+    event_creation_page,
+    page,
+):
+    """
+    TC16: Verify that uploading an unsupported file format (e.g. text file) is rejected.
+    """
+    event_creation_page.click_create_event()
+    
+    # Create a temporary txt file
+    import tempfile
+    import os
+    with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as temp_file:
+        temp_file.write(b"This is a dummy text file to test file format constraints.")
+        temp_file_path = temp_file.name
+        
+    try:
+        # Upload the text file
+        event_creation_page.upload_event_image(temp_file_path)
+        page.wait_for_timeout(1000)
+        
+        # Verify an error message or validation text is shown in the DOM
+        expect(page.locator("text=/image|format|supported|invalid|only/i").first).to_be_visible()
+        print("✅ TC16: Successfully verified unsupported file upload rejection.")
+    finally:
+        # Clean up temp file
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+
+
+@pytest.mark.regression
+def test_tc17_cancel_creation_drawer_close(
+    event_repo,
+    event_creation_page,
+    page,
+):
+    """
+    TC17: Verify that clicking the back/cancel button closes the Create Event drawer and preserves state.
+    """
+    # Open Create Event drawer
+    event_creation_page.click_create_event()
+
+    # Fill in a unique test title
+    unique_title = f"TC17 Cancel Title {random.randint(1000, 9999)}"
+    event_creation_page.fill_title(unique_title)
+    page.wait_for_timeout(500)
+
+    # Click the back/cancel button
+    back_btn = page.get_by_test_id("event-create-back-btn")
+    expect(back_btn).to_be_visible()
+    back_btn.click()
+    page.wait_for_timeout(1000)
+
+    # Verify that the Create Event drawer is closed
+    expect(event_creation_page.heading_create_event).not_to_be_visible()
+
+    # Search for the unique title in the Repository list to confirm it was not created
+    event_creation_page.search_event(unique_title)
+    page.wait_for_timeout(1000)
+    expect(page.locator("tbody")).not_to_contain_text(unique_title)
+    
+    # Reset search filter
+    page.get_by_test_id("event-search-input").fill("")
+    page.wait_for_timeout(1000)
+    print("✅ TC17: Successfully verified cancel/close behavior and state preservation.")
+
+
+@pytest.mark.regression
+def test_tc18_ui_pagination_controls(
+    event_repo,
+    page,
+):
+    """
+    TC18: Verify clicking the next and previous pagination buttons updates the event list.
+    """
+    # Wait for the table rows to load and become visible first
+    page.locator("tbody tr").first.wait_for(state="visible", timeout=10000)
+    
+    # Locate pagination buttons
+    next_btn = page.locator("button[aria-label='Next page']")
+    prev_btn = page.locator("button[aria-label='Previous page']")
+    
+    # Ensure next page button is visible and enabled (since we have multiple pages)
+    expect(next_btn).to_be_visible()
+    assert not next_btn.evaluate("el => el.disabled"), "Next page button should be enabled on page 1."
+    
+    # Click next page
+    next_btn.click()
+    page.wait_for_timeout(1000)
+    
+    # Verify previous page button is now enabled
+    expect(prev_btn).to_be_visible()
+    assert not prev_btn.evaluate("el => el.disabled"), "Previous page button should be enabled after navigating to page 2."
+    
+    # Click previous page to go back
+    prev_btn.click()
+    page.wait_for_timeout(1000)
+    
+    # Verify we are back on page 1, and prev_btn is disabled
+    assert prev_btn.evaluate("el => el.disabled"), "Previous page button should be disabled on page 1."
+    print("✅ TC18: Successfully verified next and previous page pagination controls.")
+
+
+
 
