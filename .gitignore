@@ -3,3 +3,5 @@
 
 # Test artifacts
 screenshots/
+__pycache__/
+*.pyc

@@ -1,0 +1,22 @@
+{
+    "places": [
+        {
+            "place_name": "Delhi Tourist Spot",
+            "venue_name": "Delhi",
+            "postal_code": "110001",
+            "country": "India"
+        },
+        {
+            "place_name": "Bangalore Tech Park",
+            "venue_name": "Bangalore",
+            "postal_code": "560001",
+            "country": "India"
+        },
+        {
+            "place_name": "Chennai Marina Place",
+            "venue_name": "Chennai",
+            "postal_code": "600001",
+            "country": "India"
+        }
+    ]
+}
