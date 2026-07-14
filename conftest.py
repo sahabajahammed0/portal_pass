@@ -28,20 +28,38 @@ def auth_state():
         browser = p.chromium.launch(headless=True)
         context = browser.new_context()
         page = context.new_page()
-        page.goto("https://portal-pass-admin.weavers-web.com/login")
-        
-        # Log in
-        page.get_by_test_id("login-email-input").fill("admin.portal@yopmail.com")
-        page.get_by_test_id("login-password-input").fill("Admin1234!")
-        page.get_by_test_id("login-submit-btn").click()
-        
-        # Wait for the dashboard to confirm auth was successful
-        page.wait_for_selector("text=Admin Dashboard", timeout=15000)
-        
-        # Save storage state
-        context.storage_state(path=STATE_FILE)
-        print("💾 Authentication state saved successfully.")
-        browser.close()
+
+        try:
+            # Navigate and wait for the SPA to fully mount before interacting
+            page.goto("https://portal-pass-admin.weavers-web.com/login", timeout=60000)
+            page.wait_for_load_state("networkidle", timeout=60000)
+
+            # Log in — increased timeout so slow CI networks don't fail here
+            page.get_by_test_id("login-email-input").fill("admin.portal@yopmail.com", timeout=60000)
+            page.get_by_test_id("login-password-input").fill("Admin1234!", timeout=60000)
+            page.get_by_test_id("login-submit-btn").click(timeout=60000)
+
+            # Wait for the dashboard to confirm auth was successful
+            page.wait_for_selector("text=Admin Dashboard", timeout=30000)
+
+            # Save storage state
+            context.storage_state(path=STATE_FILE)
+            print("💾 Authentication state saved successfully.")
+
+        except Exception as e:
+            # Save debug artifacts so the GitHub "Debug-Login-Page" upload step has real content
+            print(f"❌ Login failed: {e}")
+            try:
+                page.screenshot(path="debug_login_page.png", full_page=True)
+                with open("debug_login_page.html", "w", encoding="utf-8") as f:
+                    f.write(page.content())
+                print("🛠️  Debug screenshot and HTML saved for CI inspection.")
+            except Exception as debug_err:
+                print(f"⚠️  Could not save debug artifacts: {debug_err}")
+            raise  # Re-raise so pytest marks the setup as ERROR
+
+        finally:
+            browser.close()
         
     yield STATE_FILE
     

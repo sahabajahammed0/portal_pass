@@ -46,10 +46,13 @@ jobs:
           mkdir -p screenshots/failed
 
       - name: Run Regression Tests
+        env:
+          PLAYWRIGHT_HEADLESS: "true"
         run: |
           pytest tests \
             --html=reports/report.html \
-            --self-contained-html
+            --self-contained-html \
+            --timeout=120
 
       - name: Upload HTML Report
         if: always()
