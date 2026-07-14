@@ -22,6 +22,7 @@ class CategoryManagement:
     def get_category_row(self, category_name: str):
         return self.page.locator("tbody tr").filter(
             has_text=category_name)
+        
            
     
     def enter_category_name(self, text: str):
