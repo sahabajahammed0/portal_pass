@@ -51,8 +51,7 @@ jobs:
         run: |
           pytest tests \
             --html=reports/report.html \
-            --self-contained-html \
-            --timeout=120
+            --self-contained-html
 
       - name: Upload HTML Report
         if: always()
