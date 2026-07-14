@@ -30,9 +30,13 @@ def auth_state():
         page = context.new_page()
 
         try:
-            # Navigate and wait for the SPA to fully mount before interacting
+            # Navigate and wait for DOM + resources to load (SPAs have continuous
+            # background polling so "networkidle" NEVER fires — use "load" instead)
             page.goto("https://portal-pass-admin.weavers-web.com/login", timeout=60000)
-            page.wait_for_load_state("networkidle", timeout=60000)
+            page.wait_for_load_state("load", timeout=60000)
+
+            # Wait explicitly for the login form to be visible in the DOM
+            page.wait_for_selector("[data-testid='login-email-input']", timeout=60000)
 
             # Log in — increased timeout so slow CI networks don't fail here
             page.get_by_test_id("login-email-input").fill("admin.portal@yopmail.com", timeout=60000)
