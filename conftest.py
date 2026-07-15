@@ -157,21 +157,49 @@ def page(auth_state):
     with sync_playwright() as p:
         if headless:
             browser = p.chromium.launch(headless=True)
-            # Set a standard high-resolution viewport for headless runs to ensure consistent layout
-            context = browser.new_context(viewport={"width": 1920, "height": 1080}, storage_state=auth_state)
         else:
             browser = p.chromium.launch(headless=False, args=["--start-maximized"])
-            context = browser.new_context(no_viewport=True, storage_state=auth_state)
 
-        page = context.new_page()
-        # Direct navigation to dashboard (bypass login page).  As above, do not
-        # wait for all background resources to finish loading.
-        page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=60000)
-        expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=30000)
+        page_to_yield = None
+        active_context = None
 
-        yield page
+        try:
+            for attempt in range(1, 3):
+                if headless:
+                    context = browser.new_context(viewport={"width": 1920, "height": 1080}, storage_state=auth_state)
+                else:
+                    context = browser.new_context(no_viewport=True, storage_state=auth_state)
 
-        browser.close()
+                page = context.new_page()
+                try:
+                    # Navigate to login page first so Cloudflare validates the session at the entrypoint
+                    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
+
+                    # Let the app detect cookies and auto-redirect to dashboard, or force it if needed
+                    try:
+                        page.wait_for_url("**/dashboard**", timeout=15000)
+                    except Exception:
+                        page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=30000)
+
+                    expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=30000)
+                    page_to_yield = page
+                    active_context = context
+                    break
+                except Exception as err:
+                    print(f"⚠️ Page fixture setup failed on attempt {attempt}/2: {err}")
+                    context.close()
+                    if attempt == 2:
+                        raise
+
+            yield page_to_yield
+
+        finally:
+            if active_context:
+                try:
+                    active_context.close()
+                except Exception:
+                    pass
+            browser.close()
 
 
 @pytest.fixture
