@@ -26,9 +26,10 @@ test_results = []
 
 
 @pytest.fixture(scope="session")
-def shared_context():
+def shared_page():
     """
-    Session-scoped fixture that maintains a single browser context.
+    Session-scoped fixture that maintains a single browser instance, context,
+    and page for the entire test session.
     Performs the login once at the start of the session.
     """
     headless_env = os.getenv("PLAYWRIGHT_HEADLESS", "").lower()
@@ -74,36 +75,36 @@ def shared_context():
                         except Exception:
                             pass
                         raise
+
+            yield page
+
         finally:
             page.close()
-
-        yield context
-
-        context.close()
-        browser.close()
+            context.close()
+            browser.close()
 
 
 @pytest.fixture
-def page(shared_context):
+def page(shared_page):
     """
-    Function-scoped page fixture that reuses the shared, authenticated context.
-    Fresh page per test, preserving the active login session.
+    Function-scoped page fixture that yields the shared, active page.
+    Navigates back to the dashboard before each test starts to ensure a clean starting point.
     """
-    page = shared_context.new_page()
-    try:
-        page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=30000)
-        expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
-    except Exception as err:
-        print(f"⚠️ Initial page navigation failed, retrying via login redirect: {err}")
+    # Check if we are still on the authenticated site, otherwise navigate
+    if not shared_page.url.startswith(ADMIN_BASE_URL):
+        shared_page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=30000)
+    else:
+        # If we are already on the site, go to dashboard directly
         try:
-            page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=20000)
-            expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
+            shared_page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=20000)
         except Exception:
-            page.close()
-            raise
+            # Fallback redirect via login entrypoint if navigation stalled
+            shared_page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=20000)
 
-    yield page
-    page.close()
+    # Ensure Event Repository dashboard element is visible before yielding to the test
+    expect(shared_page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
+    
+    yield shared_page
 
 
 @pytest.fixture
