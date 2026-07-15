@@ -25,12 +25,11 @@ DASHBOARD_URL = f"{ADMIN_BASE_URL}/dashboard"
 test_results = []
 
 
-@pytest.fixture
-def page():
+@pytest.fixture(scope="session")
+def shared_page():
     """
-    Function-scoped page fixture that launches a clean browser context,
-    performs manual login, and yields the authenticated page.
-    No session state files or shared contexts are used.
+    Session-scoped page fixture for local runs.
+    Logs in once and holds authentication state across the entire test session.
     """
     headless_env = os.getenv("PLAYWRIGHT_HEADLESS", "").lower()
     if headless_env in ["true", "1"]:
@@ -41,7 +40,7 @@ def page():
         headless = not os.environ.get("DISPLAY")
 
     with sync_playwright() as p:
-        print("\n🔑 Launching browser instance and performing login...")
+        print("\n🔑 [Local Run] Launching shared browser session...")
         if headless:
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(viewport={"width": 1920, "height": 1080})
@@ -62,17 +61,11 @@ def page():
 
                     page.wait_for_url("**/dashboard**", timeout=20000)
                     expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
-                    print("💾 Authenticated successfully.")
+                    print("💾 [Local Run] Shared session authenticated successfully.")
                     break
                 except Exception as error:
-                    print(f"⚠️ Login attempt {attempt}/2 failed: {error}")
+                    print(f"⚠️ [Local Run] Login attempt {attempt}/2 failed: {error}")
                     if attempt == 2:
-                        try:
-                            page.screenshot(path="debug_login_page.png", full_page=True)
-                            with open("debug_login_page.html", "w", encoding="utf-8") as f:
-                                f.write(page.content())
-                        except Exception:
-                            pass
                         raise
 
             yield page
@@ -81,6 +74,81 @@ def page():
             page.close()
             context.close()
             browser.close()
+
+
+@pytest.fixture
+def page(request):
+    """
+    Function-scoped page fixture.
+    - In CI/CD: Performs a fresh login for every test to bypass Cloudflare cookie reuse detection.
+    - Locally: Reuses the session-scoped page for optimal execution speed and holding authentication state.
+    """
+    if os.getenv("CI") == "true":
+        # Fresh login for CI/CD environments
+        headless_env = os.getenv("PLAYWRIGHT_HEADLESS", "").lower()
+        if headless_env in ["true", "1"]:
+            headless = True
+        elif headless_env in ["false", "0"]:
+            headless = False
+        else:
+            headless = not os.environ.get("DISPLAY")
+        
+        with sync_playwright() as p:
+            print("\n🔑 [CI Run] Launching isolated browser instance and performing login...")
+            if headless:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context(viewport={"width": 1920, "height": 1080})
+            else:
+                browser = p.chromium.launch(headless=False, args=["--start-maximized"])
+                context = browser.new_context(no_viewport=True)
+
+            page_inst = context.new_page()
+            try:
+                for attempt in range(1, 3):
+                    try:
+                        page_inst.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
+                        page_inst.wait_for_selector("[data-testid='login-email-input']", timeout=25000)
+
+                        page_inst.get_by_test_id("login-email-input").fill("admin.portal@yopmail.com")
+                        page_inst.get_by_test_id("login-password-input").fill("Admin1234!")
+                        page_inst.get_by_test_id("login-submit-btn").click()
+
+                        page_inst.wait_for_url("**/dashboard**", timeout=20000)
+                        expect(page_inst.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
+                        print("💾 [CI Run] Authenticated successfully.")
+                        break
+                    except Exception as error:
+                        print(f"⚠️ [CI Run] Login attempt {attempt}/2 failed: {error}")
+                        if attempt == 2:
+                            try:
+                                page_inst.screenshot(path="debug_login_page.png", full_page=True)
+                                with open("debug_login_page.html", "w", encoding="utf-8") as f:
+                                    f.write(page_inst.content())
+                            except Exception:
+                                pass
+                            raise
+
+                yield page_inst
+
+            finally:
+                page_inst.close()
+                context.close()
+                browser.close()
+    else:
+        # Local run: Retrieve the shared, authenticated page
+        shared_p = request.getfixturevalue("shared_page")
+        
+        # Navigate back to dashboard if we are not there
+        if not shared_p.url.startswith(ADMIN_BASE_URL):
+            shared_p.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=30000)
+        else:
+            try:
+                shared_p.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=20000)
+            except Exception:
+                shared_p.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=20000)
+
+        expect(shared_p.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
+        yield shared_p
 
 
 @pytest.fixture
