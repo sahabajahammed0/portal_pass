@@ -23,37 +23,50 @@ test_results = []
 @pytest.fixture(scope="session")
 def auth_state():
     """
-    Session-scoped fixture to perform login once and save authentication state.
+    Session-scoped fixture to perform login and save authentication state.
+
+    The public admin app is served behind a CDN.  A transient failed asset or
+    bot-challenge request can leave the SPA root empty in CI; retrying in a new
+    context is materially different from repeatedly waiting in the broken one.
     """
     with sync_playwright() as p:
         print("\n🔑 Performing session login to capture authentication state...")
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
-        page = context.new_page()
+        page = None
+        last_error = None
 
         try:
-            # Do not wait for the browser's ``load`` event here.  The admin SPA
-            # loads third-party/long-lived resources in CI, which can keep that
-            # event pending even though the login form is already interactive.
-            page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
+            for attempt in range(1, 3):
+                context = browser.new_context()
+                page = context.new_page()
+                try:
+                    # Do not wait for the browser's ``load`` event here.  The admin SPA
+                    # loads third-party/long-lived resources in CI, which can keep that
+                    # event pending even though the login form is already interactive.
+                    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_selector("[data-testid='login-email-input']", timeout=25000)
 
-            # Wait explicitly for the login form to be visible in the DOM
-            page.wait_for_selector("[data-testid='login-email-input']", timeout=60000)
+                    page.get_by_test_id("login-email-input").fill("admin.portal@yopmail.com", timeout=15000)
+                    page.get_by_test_id("login-password-input").fill("Admin1234!", timeout=15000)
+                    page.get_by_test_id("login-submit-btn").click(timeout=15000)
 
-            # Log in — increased timeout so slow CI networks don't fail here
-            page.get_by_test_id("login-email-input").fill("admin.portal@yopmail.com", timeout=60000)
-            page.get_by_test_id("login-password-input").fill("Admin1234!", timeout=60000)
-            page.get_by_test_id("login-submit-btn").click(timeout=60000)
+                    # Confirm the actual route and navigation used by the test suite.
+                    # The dashboard title is presentation text and has changed before;
+                    # the Event Repository link is a stable authenticated-page control.
+                    page.wait_for_url("**/dashboard**", timeout=20000)
+                    expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
 
-            # Confirm the actual route and navigation used by the test suite.
-            # The dashboard title is presentation text and has changed before;
-            # the Event Repository link is a stable authenticated-page control.
-            page.wait_for_url("**/dashboard**", timeout=30000)
-            expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=30000)
-
-            # Save storage state
-            context.storage_state(path=STATE_FILE)
-            print("💾 Authentication state saved successfully.")
+                    context.storage_state(path=STATE_FILE)
+                    print("💾 Authentication state saved successfully.")
+                    break
+                except Exception as error:
+                    last_error = error
+                    if attempt == 2:
+                        raise
+                    print(f"⚠️ Login page did not initialize (attempt {attempt}/2); retrying with a fresh context...")
+                finally:
+                    if last_error is not None and attempt < 2:
+                        context.close()
 
         except Exception as e:
             # Save debug artifacts so the GitHub "Debug-Login-Page" upload step has real content
