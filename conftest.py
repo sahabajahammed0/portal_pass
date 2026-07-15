@@ -26,13 +26,10 @@ test_results = []
 
 
 @pytest.fixture(scope="session")
-def auth_state():
+def shared_context():
     """
-    Session-scoped fixture to perform login and save authentication state.
-
-    The public admin app is served behind a CDN.  A transient failed asset or
-    bot-challenge request can leave the SPA root empty in CI; retrying in a new
-    context is materially different from repeatedly waiting in the broken one.
+    Session-scoped fixture that maintains a single browser context.
+    Performs the login once at the start of the session.
     """
     headless_env = os.getenv("PLAYWRIGHT_HEADLESS", "").lower()
     if headless_env in ["true", "1"]:
@@ -43,163 +40,70 @@ def auth_state():
         headless = not os.environ.get("DISPLAY")
 
     with sync_playwright() as p:
-        print("\n🔑 Performing session login to capture authentication state...")
+        print("\n🔑 Launching shared browser session...")
         if headless:
             browser = p.chromium.launch(headless=True)
+            context = browser.new_context(viewport={"width": 1920, "height": 1080})
         else:
             browser = p.chromium.launch(headless=False, args=["--start-maximized"])
-            
-        page = None
-        last_error = None
+            context = browser.new_context(no_viewport=True)
 
+        page = context.new_page()
         try:
             for attempt in range(1, 3):
-                if headless:
-                    context = browser.new_context(viewport={"width": 1920, "height": 1080})
-                else:
-                    context = browser.new_context(no_viewport=True)
-                    
-                page = context.new_page()
-                diagnostics = []
-
-                def record_console(message):
-                    if message.type in {"error", "warning"}:
-                        diagnostics.append(f"console {message.type}: {message.text}")
-
-                def record_response(response):
-                    if response.status >= 400:
-                        diagnostics.append(f"HTTP {response.status}: {response.url}")
-
-                page.on("console", record_console)
-                page.on("pageerror", lambda error: diagnostics.append(f"page error: {error}"))
-                page.on("response", record_response)
                 try:
-                    # Do not wait for the browser's ``load`` event here.  The admin SPA
-                    # loads third-party/long-lived resources in CI, which can keep that
-                    # event pending even though the login form is already interactive.
-                    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30000)
+                    # Initial login setup at the main entrypoint
+                    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
                     page.wait_for_selector("[data-testid='login-email-input']", timeout=25000)
 
-                    page.get_by_test_id("login-email-input").fill("admin.portal@yopmail.com", timeout=15000)
-                    page.get_by_test_id("login-password-input").fill("Admin1234!", timeout=15000)
-                    page.get_by_test_id("login-submit-btn").click(timeout=15000)
+                    page.get_by_test_id("login-email-input").fill("admin.portal@yopmail.com")
+                    page.get_by_test_id("login-password-input").fill("Admin1234!")
+                    page.get_by_test_id("login-submit-btn").click()
 
-                    # Confirm the actual route and navigation used by the test suite.
-                    # The dashboard title is presentation text and has changed before;
-                    # the Event Repository link is a stable authenticated-page control.
                     page.wait_for_url("**/dashboard**", timeout=20000)
                     expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
-
-                    context.storage_state(path=STATE_FILE)
-                    print("💾 Authentication state saved successfully.")
+                    print("💾 Shared browser session authenticated successfully.")
                     break
                 except Exception as error:
-                    last_error = error
-                    try:
-                        body_text = page.locator("body").inner_text(timeout=2000)
-                        print(
-                            "⚠️ Login bootstrap diagnostics: "
-                            f"url={page.url!r}; title={page.title()!r}; "
-                            f"body={body_text[:500].replace(chr(10), ' ')!r}"
-                        )
-                        for message in diagnostics[:10]:
-                            print(f"   {message}")
-                    except Exception as diagnostic_error:
-                        print(f"⚠️ Could not collect login diagnostics: {diagnostic_error}")
+                    print(f"⚠️ Shared session login attempt {attempt}/2 failed: {error}")
                     if attempt == 2:
+                        try:
+                            page.screenshot(path="debug_login_page.png", full_page=True)
+                            with open("debug_login_page.html", "w", encoding="utf-8") as f:
+                                f.write(page.content())
+                        except Exception:
+                            pass
                         raise
-                    print(f"⚠️ Login page did not initialize (attempt {attempt}/2); retrying with a fresh context...")
-                finally:
-                    if last_error is not None and attempt < 2:
-                        context.close()
-
-        except Exception as e:
-            # Save debug artifacts so the GitHub "Debug-Login-Page" upload step has real content
-            print(f"❌ Login failed: {e}")
-            try:
-                page.screenshot(path="debug_login_page.png", full_page=True)
-                with open("debug_login_page.html", "w", encoding="utf-8") as f:
-                    f.write(page.content())
-                print("🛠️  Debug screenshot and HTML saved for CI inspection.")
-            except Exception as debug_err:
-                print(f"⚠️  Could not save debug artifacts: {debug_err}")
-            raise  # Re-raise so pytest marks the setup as ERROR
-
         finally:
-            browser.close()
-        
-    yield STATE_FILE
-    
-    # Cleanup state file after session finishes
-    if os.path.exists(STATE_FILE):
-        try:
-            os.remove(STATE_FILE)
-            print("🗑️ Cleaned up authentication state file.")
-        except Exception:
-            pass
+            page.close()
+
+        yield context
+
+        context.close()
+        browser.close()
 
 
 @pytest.fixture
-def page(auth_state):
+def page(shared_context):
     """
-    Function-scoped page fixture that reuses the captured session state.
+    Function-scoped page fixture that reuses the shared, authenticated context.
+    Fresh page per test, preserving the active login session.
     """
-    # Detect headless mode dynamically: check environment variable, fallback to True if no graphical display is present
-    headless_env = os.getenv("PLAYWRIGHT_HEADLESS", "").lower()
-    if headless_env in ["true", "1"]:
-        headless = True
-    elif headless_env in ["false", "0"]:
-        headless = False
-    else:
-        # Fallback to headless on Linux if DISPLAY is not set (e.g. CI/CD or headless server)
-        headless = not os.environ.get("DISPLAY")
-
-    with sync_playwright() as p:
-        if headless:
-            browser = p.chromium.launch(headless=True)
-        else:
-            browser = p.chromium.launch(headless=False, args=["--start-maximized"])
-
-        page_to_yield = None
-        active_context = None
-
+    page = shared_context.new_page()
+    try:
+        page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=30000)
+        expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
+    except Exception as err:
+        print(f"⚠️ Initial page navigation failed, retrying via login redirect: {err}")
         try:
-            for attempt in range(1, 3):
-                if headless:
-                    context = browser.new_context(viewport={"width": 1920, "height": 1080}, storage_state=auth_state)
-                else:
-                    context = browser.new_context(no_viewport=True, storage_state=auth_state)
+            page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=20000)
+            expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
+        except Exception:
+            page.close()
+            raise
 
-                page = context.new_page()
-                try:
-                    # Navigate to login page first so Cloudflare validates the session at the entrypoint
-                    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
-
-                    # Let the app detect cookies and auto-redirect to dashboard, or force it if needed
-                    try:
-                        page.wait_for_url("**/dashboard**", timeout=15000)
-                    except Exception:
-                        page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=30000)
-
-                    expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=30000)
-                    page_to_yield = page
-                    active_context = context
-                    break
-                except Exception as err:
-                    print(f"⚠️ Page fixture setup failed on attempt {attempt}/2: {err}")
-                    context.close()
-                    if attempt == 2:
-                        raise
-
-            yield page_to_yield
-
-        finally:
-            if active_context:
-                try:
-                    active_context.close()
-                except Exception:
-                    pass
-            browser.close()
+    yield page
+    page.close()
 
 
 @pytest.fixture
