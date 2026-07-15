@@ -3,7 +3,7 @@ import json
 import os
 import re
 from datetime import datetime
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 from pages.admin.login_page import LoginPage
 from pages.admin.category_management import CategoryManagement
@@ -14,6 +14,8 @@ from pages.admin.place_listing_page import PlaceListing
 # Absolute path to conftest.py's directory for robust path resolution on any machine
 CONFTEST_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(CONFTEST_DIR, "state.json")
+LOGIN_URL = "https://portal-pass-admin.weavers-web.com/login"
+DASHBOARD_URL = "https://portal-pass-admin.weavers-web.com/dashboard"
 # List to store test results for report generation
 test_results = []
 
@@ -30,10 +32,10 @@ def auth_state():
         page = context.new_page()
 
         try:
-            # Navigate and wait for DOM + resources to load (SPAs have continuous
-            # background polling so "networkidle" NEVER fires — use "load" instead)
-            page.goto("https://portal-pass-admin.weavers-web.com/login", timeout=60000)
-            page.wait_for_load_state("load", timeout=60000)
+            # Do not wait for the browser's ``load`` event here.  The admin SPA
+            # loads third-party/long-lived resources in CI, which can keep that
+            # event pending even though the login form is already interactive.
+            page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
 
             # Wait explicitly for the login form to be visible in the DOM
             page.wait_for_selector("[data-testid='login-email-input']", timeout=60000)
@@ -43,8 +45,11 @@ def auth_state():
             page.get_by_test_id("login-password-input").fill("Admin1234!", timeout=60000)
             page.get_by_test_id("login-submit-btn").click(timeout=60000)
 
-            # Wait for the dashboard to confirm auth was successful
-            page.wait_for_selector("text=Admin Dashboard", timeout=30000)
+            # Confirm the actual route and navigation used by the test suite.
+            # The dashboard title is presentation text and has changed before;
+            # the Event Repository link is a stable authenticated-page control.
+            page.wait_for_url("**/dashboard**", timeout=30000)
+            expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=30000)
 
             # Save storage state
             context.storage_state(path=STATE_FILE)
@@ -101,8 +106,10 @@ def page(auth_state):
             context = browser.new_context(no_viewport=True, storage_state=auth_state)
 
         page = context.new_page()
-        # Direct navigation to dashboard (bypass login page)
-        page.goto("https://portal-pass-admin.weavers-web.com/dashboard")
+        # Direct navigation to dashboard (bypass login page).  As above, do not
+        # wait for all background resources to finish loading.
+        page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=60000)
+        expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=30000)
 
         yield page
 

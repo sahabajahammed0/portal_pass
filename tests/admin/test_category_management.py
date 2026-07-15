@@ -36,3 +36,30 @@ def test_01_category_management_regression_flow(
     category_page.delete_category(deleted_name)
     category_page.verify_category_deleted(deleted_name)
     print(f"✅ Category '{deleted_name}' deleted successfully.")
+    
+    
+    @pytest.mark.regression
+    def test_add_place_category(category_page, dashboard_page, category_data):
+        dashboard_page.click_category_management()
+
+        # prefer explicit key "place_category" but fall back to "name" if not present
+        place_category = category_data[0].get("place_category", category_data[0].get("name"))
+
+        category_page.add_place_category(place_category)
+        category_page.verify_place_category_created(place_category)
+        print(f"✅ Place category '{place_category}' added successfully.")        # ...existing code...
+        @pytest.mark.regression
+        def test_add_place_category(login_page, category_page, dashboard_page, category_data):
+            # ensure we're logged in (or replace with your login/session fixture)
+            login_page.sign_in_to_be_visiable()
+            login_page.login("admin.portal@yopmail.com", "Admin1234!")
+            login_page.admin_dashboard_visable()
+        
+            dashboard_page.click_category_management()
+        
+            place_category = category_data[0].get("place_category", category_data[0].get("name"))
+        
+            category_page.add_place_category(place_category)
+            category_page.verify_place_category_created(place_category)
+            print(f"✅ Place category '{place_category}' added successfully.")
+        # ...existing code...

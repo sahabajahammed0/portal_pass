@@ -13,6 +13,7 @@ class CategoryManagement:
         self.image_upload = page.locator('input[type="file"]')
         self.delete_button = page.get_by_role("button", name="Delete")
         self.cancel_button = page.get_by_role("button", name="Cancel")
+        self.place_category=page.get_by_test_id("category-place-tab-btn")
 
 
     def get_success_message(self):
@@ -68,3 +69,6 @@ class CategoryManagement:
     
     def verify_category_deleted(self, category_name: str):
         expect(self.get_category_row(category_name)).to_have_count(0)
+        
+    def click_place_category(self):
+        self.place_category.click()
