@@ -10,6 +10,12 @@ from pages.admin.category_management import CategoryManagement
 from pages.admin.dashboard_page import DashboardPage
 from pages.admin.event_creation_page import EventCreationPage
 from pages.admin.place_listing_page import PlaceListing
+from config import (
+    ADMIN_BASE_URL, ADMIN_LOGIN_URL, ADMIN_DASHBOARD_URL, ADMIN_EMAIL, ADMIN_PASSWORD,
+    USER_BASE_URL, HEADLESS, VIEWPORT, BROWSER_ARGS, NAVIGATION_TIMEOUT,
+    SELECTOR_TIMEOUT, URL_WAIT_TIMEOUT, VISIBILITY_TIMEOUT, PAGE_WAIT_TIMEOUT,
+    IS_CI, print_config
+)
 
 # Absolute path to conftest.py's directory for robust path resolution on any machine
 CONFTEST_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -147,6 +153,37 @@ def page(request):
 
         expect(shared_p.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
         yield shared_p
+
+
+@pytest.fixture
+def user_page():
+    """
+    Function-scoped page fixture for testing the public/user-facing portal.
+    Does NOT authenticate; opens the public user portal directly.
+    """
+    headless_env = os.getenv("PLAYWRIGHT_HEADLESS", "").lower()
+    if headless_env in ["true", "1"]:
+        headless = True
+    elif headless_env in ["false", "0"]:
+        headless = False
+    else:
+        headless = not os.environ.get("DISPLAY")
+
+    with sync_playwright() as p:
+        print("\n🌍 [User Portal] Launching browser for public/user portal...")
+        if headless:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(viewport={"width": 1920, "height": 1080})
+        else:
+            browser = p.chromium.launch(headless=False, args=["--start-maximized"])
+            context = browser.new_context(no_viewport=True)
+
+        user_p = context.new_page()
+        yield user_p
+
+        user_p.close()
+        context.close()
+        browser.close()
 
 
 @pytest.fixture
