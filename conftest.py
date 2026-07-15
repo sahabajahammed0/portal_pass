@@ -217,7 +217,7 @@ def pytest_runtest_makereport(item, call):
             screenshots_dir = os.path.join(os.getcwd(), "screenshots", "failed")
         elif report.passed:
             status = "PASSED"
-            screenshots_dir = os.path.join(os.getcwd(), "screenshots", "passed")
+            screenshots_dir = None
         else:
             status = "SKIPPED"
             screenshots_dir = None
@@ -230,7 +230,7 @@ def pytest_runtest_makereport(item, call):
             "timestamp": datetime.now().isoformat()
         })
         
-        # Capture screenshot if page is available
+        # Capture screenshot only on failure
         if page is not None and screenshots_dir:
             os.makedirs(screenshots_dir, exist_ok=True)
             safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", item.name)
