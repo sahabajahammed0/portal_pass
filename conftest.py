@@ -34,15 +34,31 @@ def auth_state():
     bot-challenge request can leave the SPA root empty in CI; retrying in a new
     context is materially different from repeatedly waiting in the broken one.
     """
+    headless_env = os.getenv("PLAYWRIGHT_HEADLESS", "").lower()
+    if headless_env in ["true", "1"]:
+        headless = True
+    elif headless_env in ["false", "0"]:
+        headless = False
+    else:
+        headless = not os.environ.get("DISPLAY")
+
     with sync_playwright() as p:
         print("\n🔑 Performing session login to capture authentication state...")
-        browser = p.chromium.launch(headless=True)
+        if headless:
+            browser = p.chromium.launch(headless=True)
+        else:
+            browser = p.chromium.launch(headless=False, args=["--start-maximized"])
+            
         page = None
         last_error = None
 
         try:
             for attempt in range(1, 3):
-                context = browser.new_context()
+                if headless:
+                    context = browser.new_context(viewport={"width": 1920, "height": 1080})
+                else:
+                    context = browser.new_context(no_viewport=True)
+                    
                 page = context.new_page()
                 diagnostics = []
 
