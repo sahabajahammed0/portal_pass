@@ -39,6 +39,19 @@ def auth_state():
             for attempt in range(1, 3):
                 context = browser.new_context()
                 page = context.new_page()
+                diagnostics = []
+
+                def record_console(message):
+                    if message.type in {"error", "warning"}:
+                        diagnostics.append(f"console {message.type}: {message.text}")
+
+                def record_response(response):
+                    if response.status >= 400:
+                        diagnostics.append(f"HTTP {response.status}: {response.url}")
+
+                page.on("console", record_console)
+                page.on("pageerror", lambda error: diagnostics.append(f"page error: {error}"))
+                page.on("response", record_response)
                 try:
                     # Do not wait for the browser's ``load`` event here.  The admin SPA
                     # loads third-party/long-lived resources in CI, which can keep that
@@ -61,6 +74,17 @@ def auth_state():
                     break
                 except Exception as error:
                     last_error = error
+                    try:
+                        body_text = page.locator("body").inner_text(timeout=2000)
+                        print(
+                            "⚠️ Login bootstrap diagnostics: "
+                            f"url={page.url!r}; title={page.title()!r}; "
+                            f"body={body_text[:500].replace(chr(10), ' ')!r}"
+                        )
+                        for message in diagnostics[:10]:
+                            print(f"   {message}")
+                    except Exception as diagnostic_error:
+                        print(f"⚠️ Could not collect login diagnostics: {diagnostic_error}")
                     if attempt == 2:
                         raise
                     print(f"⚠️ Login page did not initialize (attempt {attempt}/2); retrying with a fresh context...")
