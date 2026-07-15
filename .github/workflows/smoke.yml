@@ -19,8 +19,11 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      - run: python -m playwright install --with-deps chromium
+
       - run: |
-          pytest tests/admin/smoke tests/user/smoke \
+          xvfb-run --auto-servernum pytest tests/admin/smoke tests/user/smoke \
           --alluredir=reports/allure-results
         env:
+          PLAYWRIGHT_HEADLESS: "false"
           PORTAL_ADMIN_BASE_URL: ${{ vars.PORTAL_ADMIN_BASE_URL }}

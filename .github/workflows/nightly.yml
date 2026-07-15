@@ -21,10 +21,13 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      - run: python -m playwright install --with-deps chromium
+
       - run: |
-          pytest tests/ \
+          xvfb-run --auto-servernum pytest tests/ \
           --alluredir=reports/allure-results \
           --html=reports/nightly.html \
           --self-contained-html
         env:
+          PLAYWRIGHT_HEADLESS: "false"
           PORTAL_ADMIN_BASE_URL: ${{ vars.PORTAL_ADMIN_BASE_URL }}

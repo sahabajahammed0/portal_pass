@@ -46,12 +46,14 @@ jobs:
 
       - name: Run Regression Tests
         env:
-          PLAYWRIGHT_HEADLESS: "true"
+          # Use a virtual display so Chromium presents as a normal browser to
+          # the CDN challenge instead of a headless client.
+          PLAYWRIGHT_HEADLESS: "false"
           # Configure this repository variable with the allowlisted staging URL,
           # e.g. https://portal-pass-admin-staging.weavers-web.com.
           PORTAL_ADMIN_BASE_URL: ${{ vars.PORTAL_ADMIN_BASE_URL }}
         run: |
-          pytest tests \
+          xvfb-run --auto-servernum pytest tests \
             --html=reports/report.html \
             --self-contained-html
 
