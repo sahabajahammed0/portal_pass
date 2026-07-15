@@ -25,12 +25,12 @@ DASHBOARD_URL = f"{ADMIN_BASE_URL}/dashboard"
 test_results = []
 
 
-@pytest.fixture(scope="session")
-def shared_page():
+@pytest.fixture
+def page():
     """
-    Session-scoped fixture that maintains a single browser instance, context,
-    and page for the entire test session.
-    Performs the login once at the start of the session.
+    Function-scoped page fixture that launches a clean browser context,
+    performs manual login, and yields the authenticated page.
+    No session state files or shared contexts are used.
     """
     headless_env = os.getenv("PLAYWRIGHT_HEADLESS", "").lower()
     if headless_env in ["true", "1"]:
@@ -41,7 +41,7 @@ def shared_page():
         headless = not os.environ.get("DISPLAY")
 
     with sync_playwright() as p:
-        print("\n🔑 Launching shared browser session...")
+        print("\n🔑 Launching browser instance and performing login...")
         if headless:
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(viewport={"width": 1920, "height": 1080})
@@ -53,7 +53,6 @@ def shared_page():
         try:
             for attempt in range(1, 3):
                 try:
-                    # Initial login setup at the main entrypoint
                     page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
                     page.wait_for_selector("[data-testid='login-email-input']", timeout=25000)
 
@@ -63,10 +62,10 @@ def shared_page():
 
                     page.wait_for_url("**/dashboard**", timeout=20000)
                     expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
-                    print("💾 Shared browser session authenticated successfully.")
+                    print("💾 Authenticated successfully.")
                     break
                 except Exception as error:
-                    print(f"⚠️ Shared session login attempt {attempt}/2 failed: {error}")
+                    print(f"⚠️ Login attempt {attempt}/2 failed: {error}")
                     if attempt == 2:
                         try:
                             page.screenshot(path="debug_login_page.png", full_page=True)
@@ -82,29 +81,6 @@ def shared_page():
             page.close()
             context.close()
             browser.close()
-
-
-@pytest.fixture
-def page(shared_page):
-    """
-    Function-scoped page fixture that yields the shared, active page.
-    Navigates back to the dashboard before each test starts to ensure a clean starting point.
-    """
-    # Check if we are still on the authenticated site, otherwise navigate
-    if not shared_page.url.startswith(ADMIN_BASE_URL):
-        shared_page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=30000)
-    else:
-        # If we are already on the site, go to dashboard directly
-        try:
-            shared_page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=20000)
-        except Exception:
-            # Fallback redirect via login entrypoint if navigation stalled
-            shared_page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=20000)
-
-    # Ensure Event Repository dashboard element is visible before yielding to the test
-    expect(shared_page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
-    
-    yield shared_page
 
 
 @pytest.fixture
