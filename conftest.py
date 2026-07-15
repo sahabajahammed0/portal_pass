@@ -52,6 +52,7 @@ def shared_page():
         try:
             for attempt in range(1, 3):
                 try:
+                    
                     page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
                     page.wait_for_selector("[data-testid='login-email-input']", timeout=25000)
 
