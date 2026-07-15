@@ -14,8 +14,13 @@ from pages.admin.place_listing_page import PlaceListing
 # Absolute path to conftest.py's directory for robust path resolution on any machine
 CONFTEST_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(CONFTEST_DIR, "state.json")
-LOGIN_URL = "https://portal-pass-admin.weavers-web.com/login"
-DASHBOARD_URL = "https://portal-pass-admin.weavers-web.com/dashboard"
+DEFAULT_ADMIN_BASE_URL = "https://portal-pass-admin.weavers-web.com"
+# Set PORTAL_ADMIN_BASE_URL in CI to an approved staging/test hostname that is
+# allowlisted in Cloudflare.  An empty GitHub Actions variable safely falls
+# back to the existing production URL for local runs.
+ADMIN_BASE_URL = os.getenv("PORTAL_ADMIN_BASE_URL", DEFAULT_ADMIN_BASE_URL).strip().rstrip("/") or DEFAULT_ADMIN_BASE_URL
+LOGIN_URL = f"{ADMIN_BASE_URL}/login"
+DASHBOARD_URL = f"{ADMIN_BASE_URL}/dashboard"
 # List to store test results for report generation
 test_results = []
 

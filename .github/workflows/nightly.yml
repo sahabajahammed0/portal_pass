@@ -26,3 +26,5 @@ jobs:
           --alluredir=reports/allure-results \
           --html=reports/nightly.html \
           --self-contained-html
+        env:
+          PORTAL_ADMIN_BASE_URL: ${{ vars.PORTAL_ADMIN_BASE_URL }}

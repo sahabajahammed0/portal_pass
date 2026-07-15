@@ -22,3 +22,5 @@ jobs:
       - run: |
           pytest tests/admin/smoke tests/user/smoke \
           --alluredir=reports/allure-results
+        env:
+          PORTAL_ADMIN_BASE_URL: ${{ vars.PORTAL_ADMIN_BASE_URL }}
