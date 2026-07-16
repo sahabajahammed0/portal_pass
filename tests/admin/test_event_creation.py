@@ -302,8 +302,47 @@ def test_tc07_verify_event_details_in_list(
     )
     event_creation_page.verify_row_date_is_recent(row)
 
-    print(f"✅ TC07: Successfully verified details for event '{created_event_title}' in the list: "
+    print(f"✅ TC07: Successfully verified details for event '{created_event_title}' in the Admin list: "
           f"Location='{created_event_venue}', Source='{created_event_source}', Status='{created_event_status}'.")
+
+    # 4. Verify in the User Portal in BOTH desktop and mobile responsive layouts
+    from pages.user_page.event_page import UserEventPage
+    context = page.context
+    context.set_geolocation({"latitude": 39.7392, "longitude": -104.9903})
+    context.grant_permissions(["geolocation"], origin="https://portal-pass-web.weavers-web.com")
+
+    for layout in ["desktop", "mobile"]:
+        print(f"🔎 [TC07] Opening User Portal in {layout} layout to verify details for '{created_event_title}'")
+        user_p = context.new_page()
+        if layout == "mobile":
+            user_p.set_viewport_size({"width": 390, "height": 844})
+        else:
+            user_p.set_viewport_size({"width": 1920, "height": 1080})
+            
+        user_event_page = UserEventPage(user_p)
+        user_event_page.navigate_to_home_user_portal()
+        user_event_page.go_to_events()
+
+        # Search for the newly created event
+        user_event_page.search_box.fill(created_event_title)
+        user_event_page.page.wait_for_timeout(2000)
+
+        # Verify event appears in results
+        user_event_page.verify_event_in_results(created_event_title)
+
+        # Click on the event card/title to navigate to the details page
+        user_event_page.click_event_by_title(created_event_title)
+
+        # Verify that the event details page shows correct Title, Venue, and Category
+        expect(user_event_page.page.locator("h1")).to_contain_text(created_event_title, timeout=10000)
+        body_text = user_event_page.page.locator("body").inner_text()
+        assert created_event_venue in body_text, f"Venue '{created_event_venue}' not found on details page."
+        assert created_event_category in body_text, f"Category '{created_event_category}' not found on details page."
+
+        # Close user portal page
+        user_p.close()
+
+    print(f"✅ TC07: Successfully verified details for event '{created_event_title}' in both the Admin list and User Portal (both layouts)!")
 
 
 @pytest.mark.xfail(reason="Known developer issue: Category filtering is broken on the repository list page.")

@@ -67,7 +67,15 @@ class UserEventPage:
 
     def go_to_events(self):
         """Clicks the 'Events' link to navigate to the Explore Events page."""
-        self.events_link.click()
+        hamburger = self.page.locator('button[aria-label="Open navigation menu"]')
+        if hamburger.is_visible():
+            hamburger.click()
+            # Click the Events link inside the navigation menu
+            events_menu_link = self.page.get_by_label("Navigation menu").get_by_role("link", name="Events")
+            events_menu_link.click()
+        else:
+            self.events_link.click()
+
         expect(self.explore_heading).to_be_visible()
         expect(self.search_box).to_be_visible()
         expect(self.filters_button).to_be_visible()

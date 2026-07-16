@@ -5,8 +5,24 @@ from pages.user_page.event_page import UserEventPage
 from config import USER_BASE_URL
 from playwright.sync_api import expect
 
-created_tc05_event_title = None
+created_tc05_event_titles = {"desktop": None, "mobile": None}
 
+
+@pytest.fixture(params=[
+    {"width": 1920, "height": 1080, "name": "desktop"},
+    {"width": 390, "height": 844, "name": "mobile"}
+], ids=["desktop", "mobile"])
+def user_viewport(request):
+    """Fixture supplying viewports for desktop and mobile responsive testing."""
+    return request.param
+
+
+@pytest.fixture(autouse=True)
+def configure_user_page_viewport(request, user_viewport):
+    """Autouse fixture to set the viewport size of user_page to the current parameterized layout."""
+    if "user_page" in request.fixturenames:
+        user_p = request.getfixturevalue("user_page")
+        user_p.set_viewport_size({"width": user_viewport["width"], "height": user_viewport["height"]})
 
 
 def test_tc01_user_navigation_and_footer_verification(user_page):
@@ -76,7 +92,8 @@ def test_tc03_sort_events(user_page):
 def test_tc04_create_event_from_admin_and_verify_in_user_portal(
     event_repo,
     event_creation_page,
-    page
+    page,
+    user_viewport
 ):
     """TC04: Create an event from Admin portal, then verify it exists in the User portal with correct details."""
     import random
@@ -143,6 +160,7 @@ def test_tc04_create_event_from_admin_and_verify_in_user_portal(
     # Open a new page/tab in the same browser session for the User Portal
     print(f"🔎 Opening new page in User Portal to search and verify details for '{event_title}'")
     user_p = context.new_page()
+    user_p.set_viewport_size({"width": user_viewport["width"], "height": user_viewport["height"]})
     user_event_page = UserEventPage(user_p)
     user_event_page.navigate_to_home_user_portal()
     user_event_page.go_to_events()
@@ -170,14 +188,15 @@ def test_tc04_create_event_from_admin_and_verify_in_user_portal(
 def test_tc05_create_event_with_child_category_and_verify_filters(
     event_repo,
     event_creation_page,
-    page
+    page,
+    user_viewport
 ):
     """TC05: Create an event with a parent category and child category, then verify category filters in the User portal."""
     import random
     import os
     from playwright.sync_api import expect
 
-    global created_tc05_event_title
+    global created_tc05_event_titles
 
     # 1. Choose a random venue and a random image for event creation
     venues = ["New York", "Los Angeles", "Chicago", "Paris", "Sydney", "Berlin", "Toronto"]
@@ -200,7 +219,7 @@ def test_tc05_create_event_with_child_category_and_verify_filters(
     # 2. Generate a unique event title
     unique_id = random.randint(10000, 99999)
     event_title = f"Admin Child Category Test Event {unique_id}"
-    created_tc05_event_title = event_title
+    created_tc05_event_titles[user_viewport["name"]] = event_title
     event_description = f"This is an automated test event description for {event_title}."
     event_website = "https://www.example-test-event.com"
     event_email = f"contact-{unique_id}@example.com"
@@ -259,6 +278,7 @@ def test_tc05_create_event_with_child_category_and_verify_filters(
     # Open a new page/tab in the same browser session for the User Portal
     print(f"🔎 Opening new page in User Portal to apply category filters for '{event_title}'")
     user_p = context.new_page()
+    user_p.set_viewport_size({"width": user_viewport["width"], "height": user_viewport["height"]})
     user_event_page = UserEventPage(user_p)
     user_event_page.navigate_to_home_user_portal()
     user_event_page.go_to_events()
@@ -302,13 +322,15 @@ def test_tc05_create_event_with_child_category_and_verify_filters(
 def test_tc06_make_inactive_and_verify_not_visible_in_user_portal(
     event_repo,
     event_creation_page,
-    page
+    page,
+    user_viewport
 ):
     """
     TC06: Find the event created in TC05, make it Inactive from the Admin portal,
     then verify that it is no longer displayed on the User site.
     """
-    global created_tc05_event_title
+    global created_tc05_event_titles
+    created_tc05_event_title = created_tc05_event_titles[user_viewport["name"]]
     
     # Ensure we have the event title from TC05
     assert created_tc05_event_title is not None, "No event created in TC05 to make inactive!"
@@ -338,6 +360,7 @@ def test_tc06_make_inactive_and_verify_not_visible_in_user_portal(
 
     print(f"🔎 Opening User Portal to verify '{created_tc05_event_title}' is no longer visible...")
     user_p = context.new_page()
+    user_p.set_viewport_size({"width": user_viewport["width"], "height": user_viewport["height"]})
     user_event_page = UserEventPage(user_p)
     user_event_page.navigate_to_home_user_portal()
     user_event_page.go_to_events()
