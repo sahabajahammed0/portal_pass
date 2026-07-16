@@ -1,6 +1,8 @@
 import os
 import pytest
 import random
+import calendar
+from datetime import datetime, timedelta
 from faker import Faker
 from playwright.sync_api import expect
 
@@ -12,6 +14,8 @@ created_event_venue = "New York"
 created_event_source = "Manual Entry"
 created_event_status = "Active"
 created_event_category = None
+created_event_start_day = None   # Set dynamically in TC02 based on today's date
+created_event_end_day = None     # Set dynamically in TC02 based on today's date
 
 
 def test_tc01_empty_form_validation(
@@ -39,7 +43,7 @@ def test_tc02_create_event_with_fake_data(
     """
     TC02: Verify successful creation of an event using random fake data, category, and image.
     """
-    global created_event_title, created_event_category, created_event_venue
+    global created_event_title, created_event_category, created_event_venue, created_event_start_day, created_event_end_day
 
     # Pick a random venue from a list of verified System Places in the database
     venues = ["New York", "Los Angeles", "Chicago", "Paris", "Sydney", "Berlin", "Toronto"]
@@ -58,7 +62,7 @@ def test_tc02_create_event_with_fake_data(
             full_path = os.path.join(image_dir, f)
             if os.path.getsize(full_path) < 2500000:  # Less than 2.5 MB
                 safe_images.append(f)
-                
+
     assert len(safe_images) > 0, "No mock images under 2.5 MB found in data/images!"
     random_image_name = random.choice(safe_images)
     random_image_path = os.path.join(image_dir, random_image_name)
@@ -68,12 +72,28 @@ def test_tc02_create_event_with_fake_data(
     fake_title = f"Fake Event {fake.word().capitalize()} {random.randint(1000, 9999)}"
     created_event_title = fake_title  # Save to global variable for TC03
 
+    # Compute future start/end days dynamically so this test works on any calendar day.
+    # start = today + 2 days, end = today + 5 days.
+    # If end would spill into next month, cap both within the current month.
+    today = datetime.now()
+    last_day_of_month = calendar.monthrange(today.year, today.month)[1]
+    start_date = today + timedelta(days=2)
+    end_date = today + timedelta(days=5)
+    # Cap within current month if the dates cross into next month
+    if start_date.month != today.month:
+        start_date = datetime(today.year, today.month, last_day_of_month - 3)
+    if end_date.month != today.month:
+        end_date = datetime(today.year, today.month, last_day_of_month)
+    created_event_start_day = str(start_date.day)
+    created_event_end_day = str(end_date.day)
+    print(f"📅 Using dynamic date range: day {created_event_start_day} → day {created_event_end_day}")
+
     # Call the high-level create_event function
     created_event_category = event_creation_page.create_event(
         title=fake_title,
         venue=created_event_venue,
-        start_day="15",
-        end_day="18",
+        start_day=created_event_start_day,
+        end_day=created_event_end_day,
         start_time="10:00",
         end_time="18:00",
         description=fake.paragraph(nb_sentences=3),
@@ -162,8 +182,9 @@ def test_tc06_edit_active_to_inactive(
     event_creation_page,
 ):
     """
-    TC06: Find the first active 'Manual Entry' event, edit it, toggle its status to 'Inactive',
-    and verify that it shows up when filtering the repository by 'Inactive' status.
+    TC06: Test status toggling via two methods.
+    - Case 1: Toggle status from Active to Inactive directly from the repository list table row.
+    - Case 2: Edit the Inactive event and set it to Active on the Edit page, then verify it is Active again.
     """
     global created_event_title, created_event_status
 
@@ -175,8 +196,6 @@ def test_tc06_edit_active_to_inactive(
         print(f"🔍 Searching for event: '{created_event_title}'")
         event_creation_page.search_event(created_event_title)
     else:
-        # If no specific event is created (e.g., test is run in isolation or parallelized),
-        # filter the list by Status = Active and Source = Manual Entry to guarantee matching rows exist.
         print("⚠️ No created_event_title found. Filtering repository by Active and Manual Entry to find a target event.")
         event_creation_page.filter_by_status("Active")
         event_creation_page.filter_by_source("Manual Entry")
@@ -186,45 +205,55 @@ def test_tc06_edit_active_to_inactive(
 
     # Locate the target row with SOURCE 'Manual Entry' and STATUS 'Active'
     row = event_creation_page.get_row_by_source_and_status(source="Manual Entry", status="Active")
-
-    # Ensure a matching row was found
     expect(row).to_be_visible()
 
     # Get the title of the target event
     event_title = row.locator("td").nth(1).inner_text().strip()
     print(f"Target Event for edit: '{event_title}'")
 
-    # 2. Click the actions button (dropdown menu) for that row
-    event_creation_page.click_row_actions(row)
+    # ==========================================
+    # Case 1: Toggle status directly from the listing page (make Inactive)
+    # ==========================================
+    print("🔄 [Case 1] Toggling status from Active to Inactive via the list switch...")
+    event_creation_page.toggle_row_status(row)
+    print("✅ Successfully toggled status to Inactive on the list.")
 
-    # 3. Click "Edit Event"
+    # Refresh/filter to see it in the Inactive list
+    event_creation_page.filter_by_status("Inactive")
+    event_creation_page.search_event(event_title)
+    
+    # Locate the row in the Inactive list
+    row_inactive = event_creation_page.get_row_by_source_and_status(source="Manual Entry", status="Inactive")
+    expect(row_inactive).to_be_visible()
+    
+    # ==========================================
+    # Case 2: Navigate to Edit and toggle back to Active
+    # ==========================================
+    print("🔄 [Case 2] Editing the Inactive event to make it Active again...")
+    event_creation_page.click_row_actions(row_inactive)
     event_creation_page.select_edit_event_from_dropdown()
 
-    # 4. Check if status is Active, then make it Inactive
-    new_status = event_creation_page.toggle_edit_status_to_inactive()
-    print(f"New Status after toggle: '{new_status}'")
-
-    # 5. Click the submit button (Update Event)
+    # Set status to Active on the edit page
+    event_creation_page.set_edit_status("Active")
     event_creation_page.submit_update_event()
     print("Update submitted successfully.")
 
     # Update global status if the edited event was our TC02 event
     if event_title == created_event_title:
-        created_event_status = "Inactive"
+        created_event_status = "Active"
         print(f"🔄 Updated global created_event_status to '{created_event_status}'")
 
-    # 6. Navigate back to Event Repository list view
+    # Navigate back to Event Repository list view
     event_creation_page.navigate_to_event_repository()
 
-    # 7. Select "Inactive" status in the filter dropdown
-    event_creation_page.filter_by_status("Inactive")
-
-    # 8. Search for the edited event
+    # Select "Active" status in the filter dropdown
+    event_creation_page.filter_by_status("Active")
     event_creation_page.search_event(event_title)
 
-    # 9. Verify the event shows in the table
-    event_creation_page.verify_event_in_list(event_title)
-    print(f"✅ TC06: Successfully verified event '{event_title}' was updated to Inactive and shows in the Inactive list.")
+    # Verify the event is back in the Active list
+    row_active_again = event_creation_page.get_row_by_source_and_status(source="Manual Entry", status="Active")
+    expect(row_active_again).to_be_visible()
+    print(f"✅ TC06: Successfully verified status toggles in both listing table and edit page for event '{event_title}'.")
 
     # Clean up listener
     page.remove_listener("response", log_listener)
@@ -356,9 +385,9 @@ def test_tc10_date_range_filter_verification(
     correctly filters the list to show only events within that range in both the DOM table
     and intercepted API responses.
     """
-    global created_event_title, created_event_status
+    global created_event_title, created_event_status, created_event_start_day, created_event_end_day
 
-    # Ensure TC02 ran and stored the event title
+    # Ensure TC02 ran and stored the event title and date range
     if created_event_title is None:
         pytest.skip("Skipping because TC02 did not run in this process/session.")
 
@@ -371,11 +400,11 @@ def test_tc10_date_range_filter_verification(
     # Select the status filter to match our event's current status (so we can find it in the DOM)
     event_creation_page.filter_by_status(created_event_status)
 
-    # Verify using helper
+    # Verify using the same dynamic date range used in TC02
     event_creation_page.verify_api_and_dom_by_date_range(
         page=page,
-        start_day="15",
-        end_day="18",
+        start_day=created_event_start_day,
+        end_day=created_event_end_day,
         search_title=created_event_title
     )
 
@@ -392,7 +421,7 @@ def test_tc11_combination_and_clear_filters(
     verify that the created event is correctly listed, click the "Clear All Filters" button,
     and assert that all inputs and dropdowns revert to their default states.
     """
-    global created_event_title, created_event_venue, created_event_source, created_event_status, created_event_category
+    global created_event_title, created_event_venue, created_event_source, created_event_status, created_event_category, created_event_start_day, created_event_end_day
 
     # Ensure TC02 ran and stored the event title
     if created_event_title is None or created_event_category is None:
@@ -421,9 +450,9 @@ def test_tc11_combination_and_clear_filters(
     print(f"🔍 Selecting Source filter: '{created_event_source}'")
     event_creation_page.filter_by_source(created_event_source)
 
-    # E. Date Range filter
-    print("🔍 Selecting Date Range filter: 15th to 18th of current month")
-    event_creation_page.filter_by_date_range("15", "18")
+    # E. Date Range filter — reuse the same dynamic range computed in TC02
+    print(f"🔍 Selecting Date Range filter: day {created_event_start_day} to day {created_event_end_day}")
+    event_creation_page.filter_by_date_range(created_event_start_day, created_event_end_day)
 
     # 2. Verify that the event matches the list table output
     event_creation_page.verify_event_in_list(created_event_title)
@@ -434,7 +463,7 @@ def test_tc11_combination_and_clear_filters(
     expect(event_creation_page.status_filter_dropdown).to_have_text(created_event_status)
     expect(event_creation_page.category_filter_dropdown).to_have_text(created_event_category)
     expect(event_creation_page.source_filter_dropdown).to_have_text(created_event_source)
-    expect(event_creation_page.date_range_filter_picker).to_contain_text("15")
+    expect(event_creation_page.date_range_filter_picker).to_contain_text(created_event_start_day)
 
     # 4. Click the "Clear All Filters" button
     print("🧹 Clicking 'Clear All Filters' button...")
@@ -512,4 +541,52 @@ def test_tc12_delete_events_verification(
         print("✅ Case 3: Successfully verified delete from Actions dropdown.")
     else:
         print("⚠️ Soft Warning: No 'Fake Event' found for Case 3. Skipping.")
+
+
+@pytest.mark.xfail(reason="Known developer issue: Searching an inactive event with status filter set to 'All Status' does not display the event in the repository list.")
+def test_tc13_search_inactive_event_with_all_status(
+    event_repo,
+    page,
+    event_creation_page,
+):
+    """
+    TC13: Verify that an inactive event is visible in the repository list table when searched
+    under 'All Status' status filter.
+    """
+    global created_event_title, created_event_status
+
+    # Ensure TC02 and TC06 ran, and the event was set to inactive
+    if created_event_title is None or created_event_status != "Inactive":
+        pytest.skip("Skipping because TC02/TC06 did not run in this process/session or event is not Inactive.")
+
+    # Navigate fresh to Event Repository
+    event_creation_page.navigate_to_event_repository()
+
+    # Clear filters to start from a clean state
+    event_creation_page.clear_filters()
+
+    # 1. Set Status filter to 'All Status'
+    print("🔍 Selecting 'All Status' in status filter dropdown...")
+    event_creation_page.filter_by_status("All Status")
+
+    # 2. Search for the inactive event's title
+    print(f"🔍 Searching for inactive event: '{created_event_title}'")
+    event_creation_page.search_event(created_event_title)
+
+    try:
+        # 3. Verify that the event is displayed in the list (expect to be visible, but xfailed due to system bug)
+        print("🔍 Verifying that the inactive event is visible in the list...")
+        inactive_row = event_creation_page.get_row_by_title(created_event_title)
+        expect(inactive_row).to_be_visible()
+        print("✅ Verified inactive event is visible under 'All Status' status filter.")
+    finally:
+        # Cleanup: Delete the event to avoid creating unnecessary junk
+        print("🧹 Cleaning up: Deleting the created inactive event...")
+        event_creation_page.filter_by_status("Inactive")
+        event_creation_page.search_event(created_event_title)
+        event_creation_page.delete_via_dropdown(page, title_prefix=created_event_title)
+        print(f"✅ Successfully cleaned up event '{created_event_title}'.")
+
+
+
 

@@ -62,8 +62,9 @@ class EventCreationPage:
         self.table_rows = page.locator("tbody tr")
         self.edit_event_option = page.locator("//span[normalize-space()='Edit Event']")
         self.delete_event_option = page.locator("//span[normalize-space()='Delete Event']")
-        self.edit_status_toggle_btn = page.locator("[data-testid='event-edit-system-status-toggle-btn']")
-        self.update_event_btn = page.locator("//span[normalize-space()='Update Event']")
+        self.active_status_btn = page.locator("//div[contains(., 'System Status:')]//button[normalize-space()='Active']").last
+        self.inactive_status_btn = page.locator("//div[contains(., 'System Status:')]//button[normalize-space()='Inactive']").last
+        self.update_event_btn = page.locator("button[type='submit']")
         
         # Bulk Deletion and Details Page Deletion
         self.delete_selected_btn = page.locator("//span[normalize-space()='Delete Selected']")
@@ -124,23 +125,44 @@ class EventCreationPage:
         self.page.wait_for_timeout(1000)
 
     def select_start_date(self, day: str):
-        """Clicks the start date picker and selects a specific day button."""
+        """Clicks the start date picker and selects a specific day button (must be enabled/future)."""
         self.start_date_picker.click()
         self.page.wait_for_timeout(500)
-        self.page.locator("button").filter(has_text=day).first.click()
+        day_str = str(int(day))  # normalize: "15" -> "15", "05" -> "5"
+        # Use :not([disabled]) to skip past/disabled dates
+        btn = self.page.locator(f"button:not([disabled]):not(.cursor-not-allowed)").filter(has_text=day_str).first
+        btn.wait_for(state="visible", timeout=5000)
+        btn.click()
         self.page.wait_for_timeout(500)
 
     def select_end_date(self, day: str):
-        """Clicks the end date picker and selects a specific day button."""
+        """Clicks the end date picker and selects a specific day button (must be enabled/future)."""
         self.end_date_picker.click()
         self.page.wait_for_timeout(500)
-        self.page.locator("button").filter(has_text=day).first.click()
+        day_str = str(int(day))  # normalize: "18" -> "18"
+        btn = self.page.locator(f"button:not([disabled]):not(.cursor-not-allowed)").filter(has_text=day_str).first
+        btn.wait_for(state="visible", timeout=5000)
+        btn.click()
         self.page.wait_for_timeout(500)
 
     def fill_times(self, start_time: str, end_time: str):
         """Fills both start and end time input fields."""
         self.start_time_input.fill(start_time)
         self.end_time_input.fill(end_time)
+
+    def select_parent_and_child_category(self, parent_name: str, child_name: str):
+        """Selects a parent category and then a child category from the form."""
+        self.category_dropdown.click()
+        self.page.wait_for_timeout(500)
+        self.page.locator("button[role='option']").filter(has_text=parent_name).first.click()
+        self.page.wait_for_timeout(1000)
+        
+        child_dropdown = self.page.get_by_test_id("event-create-category-dropdown-1")
+        expect(child_dropdown).to_be_visible()
+        child_dropdown.click()
+        self.page.wait_for_timeout(500)
+        self.page.locator("button[role='option']").filter(has_text=child_name).first.click()
+        self.page.wait_for_timeout(500)
 
     def select_random_category(self) -> str:
         """Opens the category dropdown, selects a random category option, and returns its name."""
@@ -190,7 +212,9 @@ class EventCreationPage:
         phone: str = "5551234567",
         notes: str = "Test Notes",
         image_path: str = None,
-        fill_venue: bool = True
+        fill_venue: bool = True,
+        parent_category: str = None,
+        child_category: str = None
     ) -> str:
         """
         High-level helper to fill and submit the entire Create Event form.
@@ -209,7 +233,11 @@ class EventCreationPage:
         self.select_end_date(end_day)
         self.fill_times(start_time, end_time)
         
-        selected_category = self.select_random_category()
+        if parent_category and child_category:
+            self.select_parent_and_child_category(parent_category, child_category)
+            selected_category = child_category
+        else:
+            selected_category = self.select_random_category()
         
         self.fill_description(description)
         self.fill_contact_info(
@@ -300,15 +328,35 @@ class EventCreationPage:
         self.delete_event_option.first.click()
         self.page.wait_for_timeout(1000)
 
-    def toggle_edit_status_to_inactive(self) -> str:
-        """Toggles status on the edit page to Inactive and returns the new status."""
-        status_text = self.edit_status_toggle_btn.locator("span").inner_text().strip()
-        if status_text == "Active":
-            self.edit_status_toggle_btn.click()
-            self.page.wait_for_timeout(1000)
-            expect(self.edit_status_toggle_btn.locator("span")).to_have_text("Inactive")
-            return "Inactive"
-        return status_text
+    def set_edit_status(self, status: str):
+        """Sets the system status on the edit page to Active or Inactive."""
+        if status.lower() == "active":
+            self.active_status_btn.click()
+            self.page.wait_for_timeout(500)
+            assert "bg-primary-purple" in (self.active_status_btn.get_attribute("class") or "")
+        else:
+            self.inactive_status_btn.click()
+            self.page.wait_for_timeout(500)
+            assert "bg-primary-purple" in (self.inactive_status_btn.get_attribute("class") or "")
+        self.page.wait_for_timeout(1000)
+
+    def toggle_row_status(self, row):
+        """Clicks the status switch toggle in the listing table row."""
+        # Using the visual div overlaying the checkbox in the Status column
+        toggle_switch = row.locator("input[data-testid*='status-switch'] + div")
+        # Let's read the initial checked status
+        checkbox = row.locator("input[data-testid*='status-switch']")
+        was_checked = checkbox.is_checked()
+        
+        # Click the toggle switch
+        toggle_switch.click()
+        
+        # Wait for the checkbox checked state to toggle
+        if was_checked:
+            expect(checkbox).not_to_be_checked(timeout=10000)
+        else:
+            expect(checkbox).to_be_checked(timeout=10000)
+        self.page.wait_for_timeout(1500)
 
     def submit_update_event(self):
         """Clicks the submit/update button on the edit page and waits for submit success."""
@@ -376,7 +424,12 @@ class EventCreationPage:
         expect(row.locator("td").nth(1)).to_have_text(title)
         expect(row.locator("td").nth(2)).to_contain_text(venue)
         expect(row.locator("td").nth(3)).to_have_text(source)
-        expect(row.locator("td").nth(4)).to_have_text(status)
+        
+        status_checkbox = row.locator("input[data-testid*='status-switch']")
+        if status.lower() == "active":
+            expect(status_checkbox).to_be_checked()
+        else:
+            expect(status_checkbox).not_to_be_checked()
 
     def verify_row_date_is_recent(self, row):
         """Verifies that the created date column (index 5) in a row contains a date near today."""
@@ -595,6 +648,7 @@ class EventCreationPage:
             if request.method in ["PATCH", "PUT"]:
                 try:
                     post_data = request.post_data_json
+                    print(f"📡 Intercepted {request.method} payload: {post_data}")
                     if isinstance(post_data, dict) and "venueSourceId" in post_data:
                         del post_data["venueSourceId"]
                         print(f"🛠️ Intercepted {request.method} request, removed 'venueSourceId' from payload.")
@@ -608,11 +662,18 @@ class EventCreationPage:
 
     def get_row_by_source_and_status(self, source: str, status: str):
         """Finds the first row matching the given source and status."""
-        return self.table_rows.filter(
+        source_rows = self.table_rows.filter(
             has=self.page.locator("td").nth(3).get_by_text(source)
-        ).filter(
-            has=self.page.locator("td").nth(4).get_by_text(status)
-        ).first
+        )
+        count = source_rows.count()
+        for idx in range(count):
+            row = source_rows.nth(idx)
+            status_checkbox = row.locator("input[data-testid*='status-switch']")
+            is_checked = status_checkbox.is_checked()
+            expected_checked = (status.lower() == "active")
+            if is_checked == expected_checked:
+                return row
+        return source_rows.first
 
     def delete_selected_bulk(self, page, title_prefix: str = "Fake Event") -> bool:
         """

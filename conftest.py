@@ -171,13 +171,26 @@ def user_page():
 
     with sync_playwright() as p:
         print("\n🌍 [User Portal] Launching browser for public/user portal...")
+        # Use Denver, CO coordinates as default to display regional events
+        geo_location = {"latitude": 39.7392, "longitude": -104.9903}
+        permissions = ["geolocation"]
+
         if headless:
             browser = p.chromium.launch(headless=True)
-            context = browser.new_context(viewport={"width": 1920, "height": 1080})
+            context = browser.new_context(
+                viewport={"width": 1920, "height": 1080},
+                geolocation=geo_location,
+                permissions=permissions
+            )
         else:
             browser = p.chromium.launch(headless=False, args=["--start-maximized"])
-            context = browser.new_context(no_viewport=True)
+            context = browser.new_context(
+                no_viewport=True,
+                geolocation=geo_location,
+                permissions=permissions
+            )
 
+        context.grant_permissions(["geolocation"], origin="https://portal-pass-web.weavers-web.com")
         user_p = context.new_page()
         yield user_p
 
@@ -284,3 +297,24 @@ def place_listing_data():
     data_path = os.path.join(CONFTEST_DIR, "data", "place_listing.json")
     with open(data_path, "r") as file:
         return json.load(file)["places"]
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """
+    Automatically serves the Allure report locally after the entire test suite completes.
+    Skipped in CI/CD environments to prevent blocking pipeline execution.
+    """
+    import os
+    import subprocess
+
+    if os.getenv("CI") == "true":
+        print("\n⏭️ Skipping Allure report auto-serve in CI/CD environment.")
+        return
+
+    print("\n📊 Test execution complete. Launching Allure report server...")
+    try:
+        # Run 'allure serve allure-results'
+        subprocess.run(["allure", "serve", "allure-results"])
+    except Exception as e:
+        print(f"⚠️ Failed to launch Allure report server: {e}")
+
