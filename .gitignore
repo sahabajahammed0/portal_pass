@@ -8,3 +8,10 @@ __pycache__/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Test artifacts and reports
+allure-results/
+reports/
+*.png
+*.log
+test_out.txt
