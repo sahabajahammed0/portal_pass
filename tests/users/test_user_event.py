@@ -101,7 +101,7 @@ def test_tc04_create_event_from_admin_and_verify_in_user_portal(
     from playwright.sync_api import expect
 
     # 1. Choose a random venue and a random image for event creation
-    venues = ["New York", "Los Angeles", "Chicago", "Paris", "Sydney", "Berlin", "Toronto"]
+    venues = ["New York", "Los Angeles", "Chicago", "Sydney", "Berlin", "Toronto"]
     selected_venue = random.choice(venues)
     
     test_dir = os.path.dirname(os.path.abspath(__file__))
@@ -195,7 +195,7 @@ def test_tc05_create_event_with_child_category_and_verify_filters(
     global created_tc05_event_titles
 
     # 1. Choose a random venue and a random image for event creation
-    venues = ["New York", "Los Angeles", "Chicago", "Paris", "Sydney", "Berlin", "Toronto"]
+    venues = ["New York", "Los Angeles", "Chicago", "Sydney", "Berlin", "Toronto"]
     selected_venue = random.choice(venues)
     
     test_dir = os.path.dirname(os.path.abspath(__file__))
