@@ -161,12 +161,23 @@ def test_tc04_create_event_from_admin_and_verify_in_user_portal(
     user_event_page.navigate_to_home_user_portal()
     user_event_page.go_to_events()
 
-    # Search for the newly created event
-    user_event_page.search_box.fill(event_title)
-    user_event_page.page.wait_for_timeout(1000)
-
-    # Verify event appears in results
-    user_event_page.verify_event_in_results(event_title)
+    # Search for the newly created event (with retries for API propagation lag)
+    max_retries = 5
+    found = False
+    for attempt in range(max_retries):
+        try:
+            user_event_page.search_box.clear()
+            user_event_page.search_box.fill(event_title)
+            user_event_page.page.wait_for_timeout(2000)
+            user_event_page.verify_event_in_results(event_title)
+            found = True
+            break
+        except AssertionError as e:
+            if attempt == max_retries - 1:
+                raise
+            print(f"⚠️ Event not found in search results on attempt {attempt+1}/{max_retries}. Retrying...")
+            user_event_page.page.reload()
+            user_event_page.go_to_events()
 
     # Click on the event card/title to navigate to the details page
     user_event_page.click_event_by_title(event_title)
