@@ -46,7 +46,7 @@ def test_tc02_create_event_with_fake_data(
     global created_event_title, created_event_category, created_event_venue, created_event_start_day, created_event_end_day
 
     # Pick a random venue from a list of verified System Places in the database
-    venues = ["New York", "Los Angeles", "Chicago", "Paris", "Sydney", "Berlin", "Toronto"]
+    venues = ["New York", "Los Angeles", "Chicago", "Sydney", "Berlin", "Toronto"]
     created_event_venue = random.choice(venues)
     print(f"📍 Selected venue: {created_event_venue}")
 
