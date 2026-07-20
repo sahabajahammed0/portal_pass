@@ -135,10 +135,6 @@ def test_tc04_create_event_from_admin_and_verify_in_user_portal(
     selected_category = event_creation_page.create_event(
         title=event_title,
         venue=selected_venue,
-        start_day="22",
-        end_day="25",
-        start_time="10:00",
-        end_time="18:00",
         description=event_description,
         website=event_website,
         email=event_email,
@@ -229,32 +225,14 @@ def test_tc05_create_event_with_child_category_and_verify_filters(
     parent_cat = "Sports"
     child_cat = "Football"
 
-    # Compute future start/end days dynamically so this test works on any calendar day.
-    today = datetime.now()
-    last_day_of_month = calendar.monthrange(today.year, today.month)[1]
-    start_date = today + timedelta(days=2)
-    end_date = today + timedelta(days=5)
-    # Cap within current month if the dates cross into next month
-    if start_date.month != today.month:
-        start_date = datetime(today.year, today.month, last_day_of_month - 3)
-    if end_date.month != today.month:
-        end_date = datetime(today.year, today.month, last_day_of_month)
-    start_day = str(start_date.day)
-    end_day = str(end_date.day)
-    print(f"📅 Using dynamic date range: day {start_day} → day {end_day}")
-
     print(f"\n➕ Creating event in Admin Portal with Category '{parent_cat} -> {child_cat}': '{event_title}'")
     # Click create event button
     event_creation_page.click_create_event()
     
-    # Fill and submit event form
+    # Fill and submit event form (dates and times generated centrally)
     selected_category = event_creation_page.create_event(
         title=event_title,
         venue=selected_venue,
-        start_day=start_day,
-        end_day=end_day,
-        start_time="10:00",
-        end_time="18:00",
         description=event_description,
         website=event_website,
         email=event_email,
@@ -265,6 +243,9 @@ def test_tc05_create_event_with_child_category_and_verify_filters(
         parent_category=parent_cat,
         child_category=child_cat
     )
+    start_day = event_creation_page.last_start_day
+    end_day = event_creation_page.last_end_day
+    print(f"📅 Using dynamic date range: day {start_day} → day {end_day}")
     print(f"✅ Event '{event_title}' submitted successfully under subcategory '{selected_category}'.")
 
     # Wait for the drawer to close

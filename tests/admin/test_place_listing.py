@@ -1,6 +1,8 @@
 import os
 import random
 import pytest
+import calendar
+from datetime import datetime, timedelta
 from faker import Faker
 from playwright.sync_api import expect
 import time
@@ -179,17 +181,13 @@ def test_06_create_event_for_place(dashboard_page, place_listing_page: PlaceList
     random_image_name = random.choice(safe_images)
     random_image_path = os.path.join(image_dir, random_image_name)
 
-    # Call create_event function with fill_venue=False (since venue is pre-filled)
+    # Call create_event function with fill_venue=False (since venue is pre-filled, and dates/times are generated centrally)
     unique_event_title = f"Associated Event Under Place {random.randint(1000, 9999)}"
     print(f"📝 Creating event: '{unique_event_title}' under place '{target_place}'")
 
     event_creation_page.create_event(
         title=unique_event_title,
         venue="",
-        start_day="15",
-        end_day="18",
-        start_time="10:00",
-        end_time="18:00",
         description=fake.paragraph(nb_sentences=3),
         website=fake.url(),
         email=fake.ascii_free_email(),

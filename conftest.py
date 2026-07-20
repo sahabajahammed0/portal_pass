@@ -29,7 +29,7 @@ LOGIN_URL = f"{ADMIN_BASE_URL}/login"
 DASHBOARD_URL = f"{ADMIN_BASE_URL}/dashboard"
 
 @pytest.fixture(scope="session")
-def shared_page():
+def shared_page(playwright):
     """
     Session-scoped page fixture for local runs.
     Logs in once and holds authentication state across the entire test session.
@@ -42,46 +42,45 @@ def shared_page():
     else:
         headless = not os.environ.get("DISPLAY")
 
-    with sync_playwright() as p:
-        print("\n🔑 [Local Run] Launching shared browser session...")
-        if headless:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(viewport={"width": 1920, "height": 1080})
-        else:
-            browser = p.chromium.launch(headless=False, args=["--start-maximized"])
-            context = browser.new_context(no_viewport=True)
+    print("\n🔑 [Local Run] Launching shared browser session...")
+    if headless:
+        browser = playwright.chromium.launch(headless=True)
+        context = browser.new_context(viewport={"width": 1920, "height": 1080})
+    else:
+        browser = playwright.chromium.launch(headless=False, args=["--start-maximized"])
+        context = browser.new_context(no_viewport=True)
 
-        page = context.new_page()
-        try:
-            for attempt in range(1, 3):
-                try:
-                    
-                    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
-                    page.wait_for_selector("[data-testid='login-email-input']", timeout=25000)
+    page = context.new_page()
+    try:
+        for attempt in range(1, 3):
+            try:
+                
+                page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
+                page.wait_for_selector("[data-testid='login-email-input']", timeout=25000)
 
-                    page.get_by_test_id("login-email-input").fill("admin.portal@yopmail.com")
-                    page.get_by_test_id("login-password-input").fill("Admin1234!")
-                    page.get_by_test_id("login-submit-btn").click()
+                page.get_by_test_id("login-email-input").fill("admin.portal@yopmail.com")
+                page.get_by_test_id("login-password-input").fill("Admin1234!")
+                page.get_by_test_id("login-submit-btn").click()
 
-                    page.wait_for_url("**/dashboard**", timeout=20000)
-                    expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
-                    print("💾 [Local Run] Shared session authenticated successfully.")
-                    break
-                except Exception as error:
-                    print(f"⚠️ [Local Run] Login attempt {attempt}/2 failed: {error}")
-                    if attempt == 2:
-                        raise
+                page.wait_for_url("**/dashboard**", timeout=20000)
+                expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
+                print("💾 [Local Run] Shared session authenticated successfully.")
+                break
+            except Exception as error:
+                print(f"⚠️ [Local Run] Login attempt {attempt}/2 failed: {error}")
+                if attempt == 2:
+                    raise
 
-            yield page
+        yield page
 
-        finally:
-            page.close()
-            context.close()
-            browser.close()
+    finally:
+        page.close()
+        context.close()
+        browser.close()
 
 
 @pytest.fixture
-def page(request):
+def page(request, playwright):
     """
     Function-scoped page fixture.
     - In CI/CD: Performs a fresh login for every test to bypass Cloudflare cookie reuse detection.
@@ -97,47 +96,46 @@ def page(request):
         else:
             headless = not os.environ.get("DISPLAY")
         
-        with sync_playwright() as p:
-            print("\n🔑 [CI Run] Launching isolated browser instance and performing login...")
-            if headless:
-                browser = p.chromium.launch(headless=True)
-                context = browser.new_context(viewport={"width": 1920, "height": 1080})
-            else:
-                browser = p.chromium.launch(headless=False, args=["--start-maximized"])
-                context = browser.new_context(no_viewport=True)
+        print("\n🔑 [CI Run] Launching isolated browser instance and performing login...")
+        if headless:
+            browser = playwright.chromium.launch(headless=True)
+            context = browser.new_context(viewport={"width": 1920, "height": 1080})
+        else:
+            browser = playwright.chromium.launch(headless=False, args=["--start-maximized"])
+            context = browser.new_context(no_viewport=True)
 
-            page_inst = context.new_page()
-            try:
-                for attempt in range(1, 3):
-                    try:
-                        page_inst.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
-                        page_inst.wait_for_selector("[data-testid='login-email-input']", timeout=25000)
+        page_inst = context.new_page()
+        try:
+            for attempt in range(1, 3):
+                try:
+                    page_inst.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
+                    page_inst.wait_for_selector("[data-testid='login-email-input']", timeout=25000)
 
-                        page_inst.get_by_test_id("login-email-input").fill("admin.portal@yopmail.com")
-                        page_inst.get_by_test_id("login-password-input").fill("Admin1234!")
-                        page_inst.get_by_test_id("login-submit-btn").click()
+                    page_inst.get_by_test_id("login-email-input").fill("admin.portal@yopmail.com")
+                    page_inst.get_by_test_id("login-password-input").fill("Admin1234!")
+                    page_inst.get_by_test_id("login-submit-btn").click()
 
-                        page_inst.wait_for_url("**/dashboard**", timeout=20000)
-                        expect(page_inst.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
-                        print("💾 [CI Run] Authenticated successfully.")
-                        break
-                    except Exception as error:
-                        print(f"⚠️ [CI Run] Login attempt {attempt}/2 failed: {error}")
-                        if attempt == 2:
-                            try:
-                                page_inst.screenshot(path="debug_login_page.png", full_page=True)
-                                with open("debug_login_page.html", "w", encoding="utf-8") as f:
-                                    f.write(page_inst.content())
-                            except Exception:
-                                pass
-                            raise
+                    page_inst.wait_for_url("**/dashboard**", timeout=20000)
+                    expect(page_inst.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
+                    print("💾 [CI Run] Authenticated successfully.")
+                    break
+                except Exception as error:
+                    print(f"⚠️ [CI Run] Login attempt {attempt}/2 failed: {error}")
+                    if attempt == 2:
+                        try:
+                            page_inst.screenshot(path="debug_login_page.png", full_page=True)
+                            with open("debug_login_page.html", "w", encoding="utf-8") as f:
+                                f.write(page_inst.content())
+                        except Exception:
+                            pass
+                        raise
 
-                yield page_inst
+            yield page_inst
 
-            finally:
-                page_inst.close()
-                context.close()
-                browser.close()
+        finally:
+            page_inst.close()
+            context.close()
+            browser.close()
     else:
         # Local run: Retrieve the shared, authenticated page
         shared_p = request.getfixturevalue("shared_page")
@@ -156,7 +154,7 @@ def page(request):
 
 
 @pytest.fixture
-def user_page():
+def user_page(playwright):
     """
     Function-scoped page fixture for testing the public/user-facing portal.
     Does NOT authenticate; opens the public user portal directly.
@@ -169,34 +167,33 @@ def user_page():
     else:
         headless = not os.environ.get("DISPLAY")
 
-    with sync_playwright() as p:
-        print("\n🌍 [User Portal] Launching browser for public/user portal...")
-        # Use Denver, CO coordinates as default to display regional events
-        geo_location = {"latitude": 39.7392, "longitude": -104.9903}
-        permissions = ["geolocation"]
+    print("\n🌍 [User Portal] Launching browser for public/user portal...")
+    # Use Denver, CO coordinates as default to display regional events
+    geo_location = {"latitude": 39.7392, "longitude": -104.9903}
+    permissions = ["geolocation"]
 
-        if headless:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                viewport={"width": 1920, "height": 1080},
-                geolocation=geo_location,
-                permissions=permissions
-            )
-        else:
-            browser = p.chromium.launch(headless=False, args=["--start-maximized"])
-            context = browser.new_context(
-                no_viewport=True,
-                geolocation=geo_location,
-                permissions=permissions
-            )
+    if headless:
+        browser = playwright.chromium.launch(headless=True)
+        context = browser.new_context(
+            viewport={"width": 1920, "height": 1080},
+            geolocation=geo_location,
+            permissions=permissions
+        )
+    else:
+        browser = playwright.chromium.launch(headless=False, args=["--start-maximized"])
+        context = browser.new_context(
+            no_viewport=True,
+            geolocation=geo_location,
+            permissions=permissions
+        )
 
-        context.grant_permissions(["geolocation"], origin="https://portal-pass-web.weavers-web.com")
-        user_p = context.new_page()
-        yield user_p
+    context.grant_permissions(["geolocation"], origin="https://portal-pass-web.weavers-web.com")
+    user_p = context.new_page()
+    yield user_p
 
-        user_p.close()
-        context.close()
-        browser.close()
+    user_p.close()
+    context.close()
+    browser.close()
 
 
 @pytest.fixture
@@ -307,8 +304,8 @@ def pytest_sessionfinish(session, exitstatus):
     import os
     import subprocess
 
-    if os.getenv("CI") == "true":
-        print("\n⏭️ Skipping Allure report auto-serve in CI/CD environment.")
+    if os.getenv("CI") == "true" or os.getenv("NO_SERVE") == "true":
+        print("\n⏭️ Skipping Allure report auto-serve.")
         return
 
     print("\n📊 Test execution complete. Launching Allure report server...")

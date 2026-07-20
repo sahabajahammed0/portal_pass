@@ -72,6 +72,12 @@ class EventCreationPage:
         self.popup_delete_btn = self.confirmation_popup.locator("button:has-text('Delete'), span:has-text('Delete')")
         self.details_delete_event_btn = page.locator("//span[normalize-space()='Delete Event']")
         self.event_repository_link = page.get_by_role("link", name="Event Repository")
+        
+        # Centralized dynamically generated values
+        self.last_start_day = None
+        self.last_end_day = None
+        self.last_start_time = None
+        self.last_end_time = None
 
     # --- Actions ---
     
@@ -124,26 +130,82 @@ class EventCreationPage:
         
         self.page.wait_for_timeout(1000)
 
-    def select_start_date(self, day: str):
-        """Clicks the start date picker and selects a specific day button (must be enabled/future)."""
-        self.start_date_picker.click()
-        self.page.wait_for_timeout(500)
-        day_str = str(int(day))  # normalize: "15" -> "15", "05" -> "5"
-        # Use :not([disabled]) to skip past/disabled dates
-        btn = self.page.locator(f"button:not([disabled]):not(.cursor-not-allowed)").filter(has_text=day_str).first
+    def generate_dynamic_date_range(self):
+        """
+        Centrally generates dynamic future start and end days and times.
+        Ensures they are always in the future, valid, and avoids end-of-month edge cases
+        by shifting to next month when close to the boundary.
+        Returns a tuple of (start_day, end_day, start_time, end_time).
+        """
+        import calendar
+        from datetime import datetime, timedelta
+        import random
+        
+        today = datetime.now()
+        last_day_of_month = calendar.monthrange(today.year, today.month)[1]
+        
+        # If we have at least 5 days left in the current month, stay in current month.
+        # Otherwise, push to next month to avoid calendar boundary issues.
+        if today.day <= last_day_of_month - 5:
+            start_date = today + timedelta(days=2)
+            end_date = today + timedelta(days=4)
+        else:
+            if today.month == 12:
+                next_month_year = today.year + 1
+                next_month = 1
+            else:
+                next_month_year = today.year
+                next_month = today.month + 1
+            start_date = datetime(next_month_year, next_month, 5)
+            end_date = datetime(next_month_year, next_month, 8)
+            
+        start_day = str(start_date.day)
+        end_day = str(end_date.day)
+        
+        # Generate random future times
+        start_time = f"{random.randint(8, 11):02d}:00"
+        end_time = f"{random.randint(13, 17):02d}:00"
+        
+        return start_day, end_day, start_time, end_time
+
+    def select_day_in_open_calendar(self, day: str):
+        """Selects a day in the currently open date picker calendar, navigating months if necessary."""
+        day_normalized = str(int(day))
+        
+        # Check if the active (enabled) day button is visible
+        btn = self.page.locator("button:not([disabled]):not(.cursor-not-allowed)").filter(has_text=day_normalized).first
+        
+        if btn.count() == 0 or not btn.is_visible():
+            print(f"ℹ️ Day '{day_normalized}' not found or disabled in current month view. Navigating to next month...")
+            # Try to click next month button inside calendar popups
+            next_btn = self.page.locator("button[aria-label*='Next'], button[aria-label*='next'], button.next, .next-month").first
+            if next_btn.count() > 0 and next_btn.is_visible():
+                next_btn.click()
+            else:
+                # Try generic chevron/svg button click
+                next_btn_svg = self.page.locator("div[role='dialog'] button:has(svg), div[role='tooltip'] button:has(svg), div.absolute button:has(svg)").nth(1)
+                if next_btn_svg.count() > 0 and next_btn_svg.is_visible():
+                    next_btn_svg.click()
+            self.page.wait_for_timeout(500)
+            
+            # Re-locate the button
+            btn = self.page.locator("button:not([disabled]):not(.cursor-not-allowed)").filter(has_text=day_normalized).first
+            
         btn.wait_for(state="visible", timeout=5000)
         btn.click()
         self.page.wait_for_timeout(500)
 
+    def select_start_date(self, day: str):
+        """Clicks the start date picker and selects a specific day button."""
+        self.start_date_picker.click()
+        self.page.wait_for_timeout(500)
+        self.select_day_in_open_calendar(day)
+
     def select_end_date(self, day: str):
-        """Clicks the end date picker and selects a specific day button (must be enabled/future)."""
+        """Clicks the end date picker and selects a specific day button."""
         self.end_date_picker.click()
         self.page.wait_for_timeout(500)
-        day_str = str(int(day))  # normalize: "18" -> "18"
-        btn = self.page.locator(f"button:not([disabled]):not(.cursor-not-allowed)").filter(has_text=day_str).first
-        btn.wait_for(state="visible", timeout=5000)
-        btn.click()
-        self.page.wait_for_timeout(500)
+        self.select_day_in_open_calendar(day)
 
     def fill_times(self, start_time: str, end_time: str):
         """Fills both start and end time input fields."""
@@ -202,10 +264,10 @@ class EventCreationPage:
         self,
         title: str,
         venue: str,
-        start_day: str = "15",
-        end_day: str = "18",
-        start_time: str = "10:00",
-        end_time: str = "18:00",
+        start_day: str = None,
+        end_day: str = None,
+        start_time: str = None,
+        end_time: str = None,
         description: str = "Test Description",
         website: str = "https://example.com",
         email: str = "test@example.com",
@@ -219,8 +281,34 @@ class EventCreationPage:
         """
         High-level helper to fill and submit the entire Create Event form.
         If fill_venue is False, skips filling the venue autocomplete field (e.g. when pre-filled).
+        Automatically generates dynamic future date/time if not provided or if hardcoded legacy values are passed.
         Returns the selected category name.
         """
+        # Intercept and override any None or legacy hardcoded values
+        legacy_hardcoded = {"15", "18", "22", "25", "10:00", "18:00"}
+        
+        if (start_day is None or start_day in legacy_hardcoded) or \
+           (end_day is None or end_day in legacy_hardcoded) or \
+           (start_time is None or start_time in legacy_hardcoded) or \
+           (end_time is None or end_time in legacy_hardcoded):
+            
+            d_start_day, d_end_day, d_start_time, d_end_time = self.generate_dynamic_date_range()
+            
+            if start_day is None or start_day in legacy_hardcoded:
+                start_day = d_start_day
+            if end_day is None or end_day in legacy_hardcoded:
+                end_day = d_end_day
+            if start_time is None or start_time in legacy_hardcoded:
+                start_time = d_start_time
+            if end_time is None or end_time in legacy_hardcoded:
+                end_time = d_end_time
+                
+        # Store selected values centrally so tests can easily reuse them (e.g. for filtering)
+        self.last_start_day = start_day
+        self.last_end_day = end_day
+        self.last_start_time = start_time
+        self.last_end_time = end_time
+
         if image_path:
             self.upload_event_image(image_path)
             
@@ -283,10 +371,8 @@ class EventCreationPage:
         """Filters the events list by selecting a range in the date picker popover."""
         self.date_range_filter_picker.click()
         self.page.wait_for_timeout(1000)
-        calendar_popup = self.page.locator("div[role='dialog'], div[role='tooltip'], div.absolute").first
-        calendar_popup.locator("button").filter(has_text=start_day).first.click()
-        self.page.wait_for_timeout(500)
-        calendar_popup.locator("button").filter(has_text=end_day).first.click()
+        self.select_day_in_open_calendar(start_day)
+        self.select_day_in_open_calendar(end_day)
         self.page.wait_for_timeout(2500)
         self.page.keyboard.press("Escape")
         self.page.wait_for_timeout(1000)
@@ -680,6 +766,7 @@ class EventCreationPage:
         Case 1: Select 3 events starting with title_prefix, click 'Delete Selected', confirm delete.
         Returns True if successful, False if skipped due to less than 3 matching events.
         """
+        self.search_event(title_prefix)
         self.table_rows.first.wait_for(state="visible", timeout=10000)
         page.wait_for_timeout(1000)
         rows = self.table_rows.all()

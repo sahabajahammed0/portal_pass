@@ -72,30 +72,10 @@ def test_tc02_create_event_with_fake_data(
     fake_title = f"Fake Event {fake.word().capitalize()} {random.randint(1000, 9999)}"
     created_event_title = fake_title  # Save to global variable for TC03
 
-    # Compute future start/end days dynamically so this test works on any calendar day.
-    # start = today + 2 days, end = today + 5 days.
-    # If end would spill into next month, cap both within the current month.
-    today = datetime.now()
-    last_day_of_month = calendar.monthrange(today.year, today.month)[1]
-    start_date = today + timedelta(days=2)
-    end_date = today + timedelta(days=5)
-    # Cap within current month if the dates cross into next month
-    if start_date.month != today.month:
-        start_date = datetime(today.year, today.month, last_day_of_month - 3)
-    if end_date.month != today.month:
-        end_date = datetime(today.year, today.month, last_day_of_month)
-    created_event_start_day = str(start_date.day)
-    created_event_end_day = str(end_date.day)
-    print(f"📅 Using dynamic date range: day {created_event_start_day} → day {created_event_end_day}")
-
-    # Call the high-level create_event function
+    # Call the high-level create_event function (dates and times generated centrally)
     created_event_category = event_creation_page.create_event(
         title=fake_title,
         venue=created_event_venue,
-        start_day=created_event_start_day,
-        end_day=created_event_end_day,
-        start_time="10:00",
-        end_time="18:00",
         description=fake.paragraph(nb_sentences=3),
         website=fake.url(),
         email=fake.ascii_free_email(),
@@ -104,6 +84,9 @@ def test_tc02_create_event_with_fake_data(
         image_path=random_image_path,
         fill_venue=True
     )
+    created_event_start_day = event_creation_page.last_start_day
+    created_event_end_day = event_creation_page.last_end_day
+    print(f"📅 Using dynamic date range: day {created_event_start_day} → day {created_event_end_day}")
     print(f"🏷️ Selected category: {created_event_category}")
     print("📤 Submitted the event creation form.")
 
@@ -552,12 +535,12 @@ def test_tc12_delete_events_verification(
     # CASE 1: Delete Selected (Bulk Delete)
     # ==========================================
     print("📌 [Case 1] Starting Bulk Delete Verification...")
-    success = event_creation_page.delete_selected_bulk(page, title_prefix="Fake Event")
+    success = event_creation_page.delete_selected_bulk(page, title_prefix="Admin Child Category Test Event")
     if success:
         print("✅ Case 1: Successfully verified bulk delete.")
     else:
         import warnings
-        msg = "⚠️ Soft Warning: Less than 3 'Fake Event's found. Skipping Case 1 bulk delete."
+        msg = "⚠️ Soft Warning: Less than 3 'Admin Child Category Test Event's found. Skipping Case 1 bulk delete."
         print(msg)
         warnings.warn(msg)
 

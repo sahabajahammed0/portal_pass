@@ -132,13 +132,39 @@ class UserEventPage:
 
     def select_parent_and_child_filter(self, parent_name: str, child_name: str):
         """Expands the parent category in the filters, then checks the child subcategory."""
-        expand_btn = self.filter_dialog_container.get_by_role("button", name=f"Expand {parent_name}")
-        expand_btn.click()
-        
+        # 1. Expand Categories accordion if collapsed
+        categories_trigger = self.filter_dialog_container.get_by_text("No categories selected")
+        try:
+            if categories_trigger.is_visible(timeout=1000):
+                categories_trigger.click()
+                self.page.wait_for_timeout(500)
+        except Exception:
+            pass
+
+        # 2. Check if the subcategory checkbox is already visible
         checkbox = self.filter_dialog_container.get_by_role("checkbox", name=child_name)
-        checkbox.wait_for(state="attached", timeout=5000)
+        is_already_visible = False
+        try:
+            if checkbox.is_visible(timeout=1000):
+                is_already_visible = True
+        except Exception:
+            pass
+
+        # 3. Expand the parent category only if not already visible
+        if not is_already_visible:
+            expand_btn = self.filter_dialog_container.get_by_role("button", name=f"Expand {parent_name}")
+            expand_btn.scroll_into_view_if_needed()
+            expand_btn.click()
+            
+        # 4. Wait for the checkbox to be visible
+        checkbox.wait_for(state="visible", timeout=5000)
         checkbox_id = checkbox.get_attribute("id")
-        self.filter_dialog_container.locator(f"label[for='{checkbox_id}']").click()
+        
+        # 5. Wait for the label to be visible and click it
+        label = self.filter_dialog_container.locator(f"label[for='{checkbox_id}']")
+        label.wait_for(state="visible", timeout=5000)
+        label.scroll_into_view_if_needed()
+        label.click(force=True)
 
     def apply_filters(self):
         """Clicks the 'Apply Filter' button."""
@@ -242,14 +268,19 @@ class UserEventPage:
 
     def navigate_to_page(self, page_number: int) -> bool:
         """Clicks the specified page number button in pagination if it exists."""
-        page_btn = self.page.get_by_role("button", name=str(page_number), exact=True)
-        if page_btn.count() > 0 and page_btn.is_visible():
-            page_btn.click()
-            try:
-                self.page.wait_for_load_state("networkidle", timeout=3000)
-            except Exception:
-                pass
-            return True
+        page_btn = self.page.get_by_role("button", name=f"Page {page_number}", exact=True)
+        if page_btn.count() == 0:
+            page_btn = self.page.get_by_role("button", name=str(page_number), exact=True)
+            
+        if page_btn.count() > 0:
+            page_btn.scroll_into_view_if_needed()
+            if page_btn.is_visible():
+                page_btn.click()
+                try:
+                    self.page.wait_for_load_state("networkidle", timeout=3000)
+                except Exception:
+                    pass
+                return True
         return False
 
     def verify_event_presence_with_pagination(self, event_title: str, max_pages: int = 3) -> bool:

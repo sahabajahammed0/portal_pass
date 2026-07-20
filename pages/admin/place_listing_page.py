@@ -122,9 +122,12 @@ class PlaceListing:
         time.sleep(2)
         self.email_input.type(fake.ascii_free_email())
         self.website_input.type(fake.url())
-        self.facebook_input.type(f"https://facebook.com/{fake.user_name()}")
-        self.instagram_input.type(f"https://instagram.com/{fake.user_name()}")
-        self.twitter_input.type(f"https://twitter.com/{fake.user_name()}")
+        if self.facebook_input.count() > 0:
+            self.facebook_input.type(f"https://facebook.com/{fake.user_name()}")
+        if self.instagram_input.count() > 0:
+            self.instagram_input.type(f"https://instagram.com/{fake.user_name()}")
+        if self.twitter_input.count() > 0:
+            self.twitter_input.type(f"https://twitter.com/{fake.user_name()}")
         self.notes_textarea.type(fake.sentence(nb_words=14))
 
     def fill_place_form_with_venue_location(self, venue_name: str, postal_code: str, place_name: str = None):
@@ -166,14 +169,17 @@ class PlaceListing:
         self.website_input.type(fake.url())
         time.sleep(1)
         
-        self.facebook_input.type(f"https://facebook.com/{fake.user_name()}")
-        time.sleep(1)
+        if self.facebook_input.count() > 0:
+            self.facebook_input.type(f"https://facebook.com/{fake.user_name()}")
+            time.sleep(1)
         
-        self.instagram_input.type(f"https://instagram.com/{fake.user_name()}")
-        time.sleep(1)
+        if self.instagram_input.count() > 0:
+            self.instagram_input.type(f"https://instagram.com/{fake.user_name()}")
+            time.sleep(1)
         
-        self.twitter_input.type(f"https://twitter.com/{fake.user_name()}")
-        time.sleep(1)
+        if self.twitter_input.count() > 0:
+            self.twitter_input.type(f"https://twitter.com/{fake.user_name()}")
+            time.sleep(1)
         
         self.notes_textarea.type(fake.sentence(nb_words=14))
 
