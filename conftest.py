@@ -14,7 +14,7 @@ from config import (
     ADMIN_BASE_URL, ADMIN_LOGIN_URL, ADMIN_DASHBOARD_URL, ADMIN_EMAIL, ADMIN_PASSWORD,
     USER_BASE_URL, HEADLESS, VIEWPORT, BROWSER_ARGS, NAVIGATION_TIMEOUT,
     SELECTOR_TIMEOUT, URL_WAIT_TIMEOUT, VISIBILITY_TIMEOUT, PAGE_WAIT_TIMEOUT,
-    IS_CI, print_config
+    IS_CI, SCREENSHOT_ON_FAIL, print_config
 )
 
 # Absolute path to conftest.py's directory for robust path resolution on any machine
@@ -245,11 +245,9 @@ def pytest_runtest_makereport(item, call):
     if report.when == "call":
         page = item.funcargs.get("page") if hasattr(item, "funcargs") else None
         
-        # Determine test status and screenshots directory
-        if report.failed:
+        # Capture diagnostic screenshots only when a test fails.
+        if report.failed and SCREENSHOT_ON_FAIL:
             screenshots_dir = os.path.join(os.getcwd(), "screenshots", "failed")
-        elif report.passed:
-            screenshots_dir = os.path.join(os.getcwd(), "screenshots", "passed")
         else:
             screenshots_dir = None
         

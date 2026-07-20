@@ -33,7 +33,9 @@ class PlaceListing:
         self.upload_image_trigger = page.get_by_test_id("place-create-image-upload")
         self.file_input = page.locator('input[type="file"]')
         self.place_name_input = page.get_by_test_id("place-create-name-input")
-        self.place_description_input = page.get_by_test_id("place-create-description-textarea")
+        # The place form uses a Tiptap contenteditable editor rather than a
+        # textarea.  It currently has no dedicated test id.
+        self.place_description_input = page.locator("div.ProseMirror[contenteditable='true']").first
         self.category_dropdown = page.get_by_test_id("place-create-category-dropdown")
         self.rating_input = page.get_by_test_id("place-create-rating-input")
         self.city_input = page.get_by_test_id("place-create-city-input")
@@ -317,7 +319,6 @@ class PlaceListing:
         self.three_dot_button.click()
         self.delete_menuitem.click()
         self.confirm_delete()
-        
     
         
         

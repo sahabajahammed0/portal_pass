@@ -94,9 +94,6 @@ LOGIN_TIMEOUT = int(os.getenv("LOGIN_TIMEOUT", "15000"))
 # ============================================================================
 # FEATURE FLAGS
 # ============================================================================
-# Enable/disable screenshot capture for passed tests
-SCREENSHOT_ON_PASS = os.getenv("SCREENSHOT_ON_PASS", "false").lower() in ["true", "1"]
-
 # Enable/disable screenshot capture for failed tests (default: True)
 SCREENSHOT_ON_FAIL = os.getenv("SCREENSHOT_ON_FAIL", "true").lower() in ["true", "1"]
 
@@ -127,6 +124,5 @@ def print_config():
     print(f"Viewport: {VIEWPORT_WIDTH}x{VIEWPORT_HEIGHT}")
     print(f"Navigation Timeout: {NAVIGATION_TIMEOUT}ms")
     print(f"Selector Timeout: {SELECTOR_TIMEOUT}ms")
-    print(f"Screenshot on Pass: {SCREENSHOT_ON_PASS}")
     print(f"Screenshot on Fail: {SCREENSHOT_ON_FAIL}")
     print("=" * 70 + "\n")

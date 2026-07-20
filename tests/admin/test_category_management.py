@@ -1,65 +1,53 @@
 import pytest
 
-@pytest.mark.regression
-def test_01_category_management_regression_flow(
-    login_page,
-    category_page,
-    dashboard_page,
-    category_data,
-    edit_category_data,
-    delete_category_data,
-):
-    login_page.sign_in_to_be_visiable()
-    login_page.forgot_password_btn_visiable()
 
-    login_page.login("admin.portal@yopmail.com", "Admin1234!")
-    login_page.admin_dashboard_visable()
+created_category_name = None
+updated_category_name = None
 
+
+def _open_category_management(dashboard_page):
     dashboard_page.click_category_management()
 
-    first_category = category_data[0]
-    edit_item = edit_category_data[0]
-    delete_item = delete_category_data[0]
 
-    created_name = first_category["name"]
-    updated_name = edit_item["new_name"]
-    deleted_name = delete_item["name"]
+@pytest.mark.regression
+@pytest.mark.order(1)
+def test_01_add_category(category_page, dashboard_page, category_data):
+    """Create one category with a unique two-letter suffix."""
+    global created_category_name
 
-    category_page.add_category(created_name)
-    category_page.verify_category_created(created_name)
-    print(f"✅ Category '{created_name}' added successfully.")
+    _open_category_management(dashboard_page)
+    created_category_name = category_page.unique_category_name(category_data[0]["name"])
 
-    category_page.edit_category(created_name, updated_name)
-    category_page.verify_category_updated(created_name, updated_name)
-    print(f"✅ Category '{created_name}' updated to '{updated_name}' successfully.")
+    category_page.add_category(created_category_name)
+    category_page.verify_category_created(created_category_name)
+    print(f"✅ Category '{created_category_name}' added successfully.")
 
-    category_page.delete_category(deleted_name)
-    category_page.verify_category_deleted(deleted_name)
-    print(f"✅ Category '{deleted_name}' deleted successfully.")
-    
-    
-    @pytest.mark.regression
-    def test_add_place_category(category_page, dashboard_page, category_data):
-        dashboard_page.click_category_management()
 
-        # prefer explicit key "place_category" but fall back to "name" if not present
-        place_category = category_data[0].get("place_category", category_data[0].get("name"))
+@pytest.mark.regression
+@pytest.mark.order(2)
+def test_02_edit_category(category_page, dashboard_page, edit_category_data):
+    """Edit the category created by test_01."""
+    global updated_category_name
 
-        category_page.add_place_category(place_category)
-        category_page.verify_place_category_created(place_category)
-        print(f"✅ Place category '{place_category}' added successfully.")        # ...existing code...
-        @pytest.mark.regression
-        def test_add_place_category(login_page, category_page, dashboard_page, category_data):
-            # ensure we're logged in (or replace with your login/session fixture)
-            login_page.sign_in_to_be_visiable()
-            login_page.login("admin.portal@yopmail.com", "Admin1234!")
-            login_page.admin_dashboard_visable()
-        
-            dashboard_page.click_category_management()
-        
-            place_category = category_data[0].get("place_category", category_data[0].get("name"))
-        
-            category_page.add_place_category(place_category)
-            category_page.verify_place_category_created(place_category)
-            print(f"✅ Place category '{place_category}' added successfully.")
-        # ...existing code...
+    if not created_category_name:
+        pytest.fail("The add-category test must run before the edit-category test.")
+
+    _open_category_management(dashboard_page)
+    updated_category_name = category_page.unique_category_name(edit_category_data[0]["new_name"])
+
+    category_page.edit_category(created_category_name, updated_category_name)
+    category_page.verify_category_updated(created_category_name, updated_category_name)
+    print(f"✅ Category Edit  '{created_category_name}' updated to '{updated_category_name}' successfully.")
+
+
+@pytest.mark.regression
+@pytest.mark.order(3)
+def test_03_delete_category(category_page, dashboard_page):
+    """Delete the same category updated by test_02."""
+    if not updated_category_name:
+        pytest.fail("The edit-category test must run before the delete-category test.")
+
+    _open_category_management(dashboard_page)
+    category_page.delete_category(updated_category_name)
+    category_page.verify_category_deleted(updated_category_name)
+    print(f"✅ Category Delete  '{updated_category_name}' deleted successfully.")
