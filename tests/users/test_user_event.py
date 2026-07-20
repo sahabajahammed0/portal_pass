@@ -90,7 +90,7 @@ def test_tc03_sort_events(user_page):
 def test_tc04_create_event_from_admin_and_verify_in_user_portal(
     event_repo,
     event_creation_page,
-    page,
+    user_portal_browser,
     user_viewport
 ):
     """TC04: Create an event from Admin portal, then verify it exists in the User portal with correct details."""
@@ -146,15 +146,9 @@ def test_tc04_create_event_from_admin_and_verify_in_user_portal(
     # Wait for the drawer to close (verifying the heading is not visible)
     expect(event_creation_page.heading_create_event).not_to_be_visible()
 
-    # 3. Configure geolocation and permissions on the existing browser context for the User Portal
-    context = page.context
-    context.set_geolocation({"latitude": 39.7392, "longitude": -104.9903})
-    context.grant_permissions(["geolocation"], origin="https://portal-pass-web.weavers-web.com")
-
-    # Open a new page/tab in the same browser session for the User Portal
+    # Open a dedicated fresh browser for the User Portal (avoids Cloudflare bot challenge in CI)
     print(f"🔎 Opening new page in User Portal to search and verify details for '{event_title}'")
-    user_p = context.new_page()
-    user_p.set_viewport_size({"width": user_viewport["width"], "height": user_viewport["height"]})
+    user_p = user_portal_browser(user_viewport["width"], user_viewport["height"])
     user_event_page = UserEventPage(user_p)
     user_event_page.navigate_directly_to_events()
 
@@ -191,7 +185,7 @@ def test_tc04_create_event_from_admin_and_verify_in_user_portal(
 def test_tc05_create_event_with_child_category_and_verify_filters(
     event_repo,
     event_creation_page,
-    page,
+    user_portal_browser,
     user_viewport
 ):
     """TC05: Create an event with a parent category and child category, then verify category filters in the User portal."""
@@ -258,15 +252,9 @@ def test_tc05_create_event_with_child_category_and_verify_filters(
     # Wait for the drawer to close
     expect(event_creation_page.heading_create_event).not_to_be_visible()
 
-    # 3. Configure geolocation and permissions on the existing browser context for the User Portal
-    context = page.context
-    context.set_geolocation({"latitude": 39.7392, "longitude": -104.9903})
-    context.grant_permissions(["geolocation"], origin="https://portal-pass-web.weavers-web.com")
-
-    # Open a new page/tab in the same browser session for the User Portal
+    # Open a dedicated fresh browser for the User Portal (avoids Cloudflare bot challenge in CI)
     print(f"🔎 Opening new page in User Portal to apply category filters for '{event_title}'")
-    user_p = context.new_page()
-    user_p.set_viewport_size({"width": user_viewport["width"], "height": user_viewport["height"]})
+    user_p = user_portal_browser(user_viewport["width"], user_viewport["height"])
     user_event_page = UserEventPage(user_p)
     user_event_page.navigate_directly_to_events()
 
@@ -310,6 +298,7 @@ def test_tc06_make_inactive_and_verify_not_visible_in_user_portal(
     event_repo,
     event_creation_page,
     page,
+    user_portal_browser,
     user_viewport
 ):
     """
@@ -340,14 +329,9 @@ def test_tc06_make_inactive_and_verify_not_visible_in_user_portal(
     event_creation_page.toggle_row_status(row)
     print(f"✅ Successfully toggled event '{created_tc05_event_title}' to Inactive in Admin Portal.")
 
-    # 2. Configure user portal page
-    context = page.context
-    context.set_geolocation({"latitude": 39.7392, "longitude": -104.9903})
-    context.grant_permissions(["geolocation"], origin="https://portal-pass-web.weavers-web.com")
-
+    # Open a dedicated fresh browser for the User Portal (avoids Cloudflare bot challenge in CI)
     print(f"🔎 Opening User Portal to verify '{created_tc05_event_title}' is no longer visible...")
-    user_p = context.new_page()
-    user_p.set_viewport_size({"width": user_viewport["width"], "height": user_viewport["height"]})
+    user_p = user_portal_browser(user_viewport["width"], user_viewport["height"])
     user_event_page = UserEventPage(user_p)
     user_event_page.navigate_directly_to_events()
 

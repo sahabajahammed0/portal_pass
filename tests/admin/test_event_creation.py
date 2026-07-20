@@ -247,6 +247,7 @@ def test_tc07_verify_event_details_in_list(
     event_repo,
     page,
     event_creation_page,
+    user_portal_browser,
 ):
     """
     TC07: Search for the event created in TC02 and verify that all its details
@@ -290,33 +291,24 @@ def test_tc07_verify_event_details_in_list(
 
     # 4. Verify in the User Portal in BOTH desktop and mobile responsive layouts
     from pages.user_page.event_page import UserEventPage
-    context = page.context
-    context.set_geolocation({"latitude": 39.7392, "longitude": -104.9903})
-    context.grant_permissions(["geolocation"], origin="https://portal-pass-web.weavers-web.com")
 
-    for layout in ["desktop", "mobile"]:
+    for layout, width, height in [("desktop", 1920, 1080), ("mobile", 390, 844)]:
         print(f"🔎 [TC07] Opening User Portal in {layout} layout to verify details for '{created_event_title}'")
-        user_p = context.new_page()
-        if layout == "mobile":
-            user_p.set_viewport_size({"width": 390, "height": 844})
-        else:
-            user_p.set_viewport_size({"width": 1920, "height": 1080})
-            
+        # Use a fresh isolated browser — not admin context — to avoid Cloudflare bot challenge
+        user_p = user_portal_browser(width, height)
         user_event_page = UserEventPage(user_p)
         user_event_page.navigate_directly_to_events()
 
         # Search for the newly created event (with retries for API propagation lag)
         max_retries = 5
-        found = False
         for attempt in range(max_retries):
             try:
                 user_event_page.search_box.clear()
                 user_event_page.search_box.fill(created_event_title)
                 user_event_page.page.wait_for_timeout(2000)
                 user_event_page.verify_event_in_results(created_event_title)
-                found = True
                 break
-            except AssertionError as e:
+            except AssertionError:
                 if attempt == max_retries - 1:
                     raise
                 print(f"⚠️ Event not found in search results on attempt {attempt+1}/{max_retries}. Retrying...")
@@ -330,11 +322,10 @@ def test_tc07_verify_event_details_in_list(
         body_text = user_event_page.page.locator("body").inner_text()
         assert created_event_venue in body_text, f"Venue '{created_event_venue}' not found on details page."
         assert created_event_category in body_text, f"Category '{created_event_category}' not found on details page."
-
-        # Close user portal page
-        user_p.close()
+        # user_portal_browser fixture handles cleanup automatically
 
     print(f"✅ TC07: Successfully verified details for event '{created_event_title}' in both the Admin list and User Portal (both layouts)!")
+
 
 
 @pytest.mark.xfail(reason="Known developer issue: Category filtering is broken on the repository list page.")

@@ -197,6 +197,73 @@ def user_page(playwright):
 
 
 @pytest.fixture
+def user_portal_browser(playwright):
+    """
+    Factory fixture that creates a dedicated, isolated browser instance for the User Portal.
+    Use this instead of page.context.new_page() when a test needs to open the User Portal
+    while also operating the Admin Portal — this ensures Cloudflare sees a fresh real browser
+    (not a tab inside the admin context which has no user portal clearance).
+
+    Usage:
+        def test_something(user_portal_browser, user_viewport):
+            user_p = user_portal_browser(user_viewport["width"], user_viewport["height"])
+            user_event_page = UserEventPage(user_p)
+            user_event_page.navigate_directly_to_events()
+            ...
+            user_p.close()  # Always close when done
+    """
+    headless_env = os.getenv("PLAYWRIGHT_HEADLESS", "").lower()
+    if headless_env in ["true", "1"]:
+        headless = True
+    elif headless_env in ["false", "0"]:
+        headless = False
+    else:
+        headless = not os.environ.get("DISPLAY")
+
+    geo_location = {"latitude": 39.7392, "longitude": -104.9903}
+    permissions = ["geolocation"]
+    created = []  # track all opened resources for cleanup
+
+    def _factory(width: int = 1920, height: int = 1080):
+        if headless:
+            browser = playwright.chromium.launch(headless=True)
+            context = browser.new_context(
+                viewport={"width": width, "height": height},
+                geolocation=geo_location,
+                permissions=permissions
+            )
+        else:
+            browser = playwright.chromium.launch(headless=False, args=["--start-maximized"])
+            context = browser.new_context(
+                no_viewport=True,
+                geolocation=geo_location,
+                permissions=permissions
+            )
+        context.grant_permissions(["geolocation"], origin="https://portal-pass-web.weavers-web.com")
+        p = context.new_page()
+        created.append((p, context, browser))
+        return p
+
+    yield _factory
+
+    # Cleanup all browser instances created during the test
+    for p, context, browser in created:
+        try:
+            p.close()
+        except Exception:
+            pass
+        try:
+            context.close()
+        except Exception:
+            pass
+        try:
+            browser.close()
+        except Exception:
+            pass
+
+
+
+@pytest.fixture
 def login_page(page):
     return LoginPage(page)
 
