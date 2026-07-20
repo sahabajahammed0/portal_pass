@@ -48,6 +48,18 @@ class UserEventPage:
         # e.g. "Discover Events & Places Near You" or "Discover Events & Places Near Chicago"
         expect(self.discover_heading).to_be_visible(timeout=15000)
 
+    def navigate_directly_to_events(self, base_url: str = "https://portal-pass-web.weavers-web.com"):
+        """
+        Navigates DIRECTLY to the /events page — bypasses the home page entirely.
+        More reliable than navigate_to_home_user_portal() + go_to_events() in CI
+        because it avoids home page geolocation prompts, city-resolved headings,
+        and hamburger menu interactions.
+        """
+        self.page.goto(f"{base_url.rstrip('/')}/events")
+        expect(self.explore_heading).to_be_visible(timeout=15000)
+        expect(self.search_box).to_be_visible(timeout=10000)
+        expect(self.filters_button).to_be_visible(timeout=10000)
+
     def verify_footer_links(self):
         """Verifies that all standard footer links are visible on the page."""
         footer_link_names = [
@@ -66,6 +78,7 @@ class UserEventPage:
         for name in footer_link_names:
             expect(footer.get_by_role("link", name=name)).to_be_visible()
 
+
     def go_to_events(self):
         """Clicks the 'Events' link to navigate to the Explore Events page."""
         hamburger = self.page.locator('button[aria-label="Open navigation menu"]')
@@ -81,6 +94,7 @@ class UserEventPage:
         expect(self.search_box).to_be_visible()
         expect(self.filters_button).to_be_visible()
         expect(self.sort_by_button).to_be_visible()
+
 
     def search_event(self, query: str):
         """Clicks and fills the search box with the specified query."""

@@ -46,9 +46,8 @@ def test_tc02_search_events(user_page):
     """TC02: Fetch visible events, search for one, and verify search filtering accuracy."""
     event_page = UserEventPage(user_page)
 
-    # 1. Navigate to Events page
-    event_page.navigate_to_home_user_portal()
-    event_page.go_to_events()
+    # 1. Navigate to Events page directly
+    event_page.navigate_directly_to_events()
 
     # 2. Get list of initially visible event titles
     titles = event_page.get_event_titles()
@@ -70,9 +69,8 @@ def test_tc03_sort_events(user_page):
     """TC03: Sort events alphabetically (A-Z and Z-A) and check ordering accuracy."""
     event_page = UserEventPage(user_page)
 
-    # 1. Navigate to Events page
-    event_page.navigate_to_home_user_portal()
-    event_page.go_to_events()
+    # 1. Navigate to Events page directly
+    event_page.navigate_directly_to_events()
 
     # 2. Sort by Name (A-Z)
     print("\n🔀 Sorting by 'Name (A-Z)'")
@@ -158,8 +156,7 @@ def test_tc04_create_event_from_admin_and_verify_in_user_portal(
     user_p = context.new_page()
     user_p.set_viewport_size({"width": user_viewport["width"], "height": user_viewport["height"]})
     user_event_page = UserEventPage(user_p)
-    user_event_page.navigate_to_home_user_portal()
-    user_event_page.go_to_events()
+    user_event_page.navigate_directly_to_events()
 
     # Search for the newly created event (with retries for API propagation lag)
     max_retries = 5
@@ -176,8 +173,7 @@ def test_tc04_create_event_from_admin_and_verify_in_user_portal(
             if attempt == max_retries - 1:
                 raise
             print(f"⚠️ Event not found in search results on attempt {attempt+1}/{max_retries}. Retrying...")
-            user_event_page.page.reload()
-            user_event_page.go_to_events()
+            user_event_page.navigate_directly_to_events()
 
     # Click on the event card/title to navigate to the details page
     user_event_page.click_event_by_title(event_title)
@@ -272,8 +268,7 @@ def test_tc05_create_event_with_child_category_and_verify_filters(
     user_p = context.new_page()
     user_p.set_viewport_size({"width": user_viewport["width"], "height": user_viewport["height"]})
     user_event_page = UserEventPage(user_p)
-    user_event_page.navigate_to_home_user_portal()
-    user_event_page.go_to_events()
+    user_event_page.navigate_directly_to_events()
 
     # Click Filters to open the filter configuration drawer
     user_event_page.open_filters()
@@ -354,8 +349,7 @@ def test_tc06_make_inactive_and_verify_not_visible_in_user_portal(
     user_p = context.new_page()
     user_p.set_viewport_size({"width": user_viewport["width"], "height": user_viewport["height"]})
     user_event_page = UserEventPage(user_p)
-    user_event_page.navigate_to_home_user_portal()
-    user_event_page.go_to_events()
+    user_event_page.navigate_directly_to_events()
 
     # Search for the event title
     user_event_page.search_box.fill(created_tc05_event_title)

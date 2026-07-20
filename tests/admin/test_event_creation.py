@@ -303,8 +303,7 @@ def test_tc07_verify_event_details_in_list(
             user_p.set_viewport_size({"width": 1920, "height": 1080})
             
         user_event_page = UserEventPage(user_p)
-        user_event_page.navigate_to_home_user_portal()
-        user_event_page.go_to_events()
+        user_event_page.navigate_directly_to_events()
 
         # Search for the newly created event (with retries for API propagation lag)
         max_retries = 5
@@ -321,8 +320,7 @@ def test_tc07_verify_event_details_in_list(
                 if attempt == max_retries - 1:
                     raise
                 print(f"⚠️ Event not found in search results on attempt {attempt+1}/{max_retries}. Retrying...")
-                user_event_page.page.reload()
-                user_event_page.go_to_events()
+                user_event_page.navigate_directly_to_events()
 
         # Click on the event card/title to navigate to the details page
         user_event_page.click_event_by_title(created_event_title)
