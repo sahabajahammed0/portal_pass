@@ -44,8 +44,9 @@ class UserEventPage:
     def navigate_to_home_user_portal(self, base_url: str = "https://portal-pass-web.weavers-web.com/"):
         """Navigates to the home page of the user portal."""
         self.page.goto(base_url)
-        # Verify the main discover heading on home page
-        expect(self.page.get_by_role("heading", name="Discover Events & Places Near You")).to_be_visible()
+        # Use partial match since the heading changes based on detected city
+        # e.g. "Discover Events & Places Near You" or "Discover Events & Places Near Chicago"
+        expect(self.discover_heading).to_be_visible(timeout=15000)
 
     def verify_footer_links(self):
         """Verifies that all standard footer links are visible on the page."""
