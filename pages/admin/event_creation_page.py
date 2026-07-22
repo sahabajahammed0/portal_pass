@@ -170,10 +170,12 @@ class EventCreationPage:
 
     def select_day_in_open_calendar(self, day: str):
         """Selects a day in the currently open date picker calendar, navigating months if necessary."""
+        import re
         day_normalized = str(int(day))
         
-        # Check if the active (enabled) day button is visible
-        btn = self.page.locator("button:not([disabled]):not(.cursor-not-allowed)").filter(has_text=day_normalized).first
+        # Scope selector to the active calendar popover/dialog and use exact text match
+        popover = self.page.locator("div[role='dialog'], div[role='tooltip'], div.absolute").filter(has=self.page.locator("button")).last
+        btn = popover.locator("button:not([disabled]):not(.cursor-not-allowed)").filter(has_text=re.compile(f"^{day_normalized}$")).first
         
         if btn.count() == 0 or not btn.is_visible():
             print(f"ℹ️ Day '{day_normalized}' not found or disabled in current month view. Navigating to next month...")
@@ -188,8 +190,9 @@ class EventCreationPage:
                     next_btn_svg.click()
             self.page.wait_for_timeout(500)
             
-            # Re-locate the button
-            btn = self.page.locator("button:not([disabled]):not(.cursor-not-allowed)").filter(has_text=day_normalized).first
+            # Re-locate the button in updated popover
+            popover = self.page.locator("div[role='dialog'], div[role='tooltip'], div.absolute").filter(has=self.page.locator("button")).last
+            btn = popover.locator("button:not([disabled]):not(.cursor-not-allowed)").filter(has_text=re.compile(f"^{day_normalized}$")).first
             
         btn.wait_for(state="visible", timeout=5000)
         btn.click()

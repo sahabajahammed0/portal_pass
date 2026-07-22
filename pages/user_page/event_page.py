@@ -128,13 +128,51 @@ class UserEventPage:
 
     def select_date_range(self, from_day: str, to_day: str):
         """Selects From Date and To Date from the filter modal calendar."""
-        self.click_from_date()
-        from_day_str = from_day.zfill(2)
-        self.page.get_by_role("button", name=from_day_str, exact=True).click()
+        import calendar
+        from datetime import datetime
         
+        today = datetime.now()
+        last_day_of_month = calendar.monthrange(today.year, today.month)[1]
+        is_next_month = today.day > last_day_of_month - 5
+        
+        # Click From Date picker
+        self.click_from_date()
+        self.page.wait_for_timeout(500)
+        
+        # Find the open calendar popover
+        popover = self.page.locator("div[role='dialog'], div[role='tooltip'], div.absolute").filter(has=self.page.locator("button")).last
+        
+        if is_next_month:
+            # Click "Next month" button inside the calendar popover
+            next_btn = popover.get_by_role("button", name="Next month")
+            if next_btn.count() > 0:
+                next_btn.click()
+            else:
+                popover.locator("button[aria-label='Next month']").click()
+            self.page.wait_for_timeout(500)
+            
+        from_day_str = from_day.zfill(2)
+        popover.get_by_role("button", name=from_day_str, exact=True).click()
+        self.page.wait_for_timeout(500)
+        
+        # Click To Date picker
         self.click_to_date()
+        self.page.wait_for_timeout(500)
+        
+        # Find the open calendar popover again
+        popover = self.page.locator("div[role='dialog'], div[role='tooltip'], div.absolute").filter(has=self.page.locator("button")).last
+        
+        if is_next_month:
+            next_btn = popover.get_by_role("button", name="Next month")
+            if next_btn.count() > 0:
+                next_btn.click()
+            else:
+                popover.locator("button[aria-label='Next month']").click()
+            self.page.wait_for_timeout(500)
+            
         to_day_str = to_day.zfill(2)
-        self.page.get_by_role("button", name=to_day_str, exact=True).click()
+        popover.get_by_role("button", name=to_day_str, exact=True).click()
+        self.page.wait_for_timeout(500)
 
     def select_category(self, category_name: str):
         """Opens the category selection filter dropdown and clicks the specified category option."""
