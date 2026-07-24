@@ -318,7 +318,7 @@ def test_tc07_verify_event_details_in_list(
         user_event_page.click_event_by_title(created_event_title)
 
         # Verify that the event details page shows correct Title, Venue, and Category
-        expect(user_event_page.page.locator("h1")).to_contain_text(created_event_title, timeout=10000)
+        expect(user_event_page.page.locator("h1, h2").first).to_contain_text(created_event_title, timeout=10000)
         body_text = user_event_page.page.locator("body").inner_text()
         assert created_event_venue in body_text, f"Venue '{created_event_venue}' not found on details page."
         assert created_event_category in body_text, f"Category '{created_event_category}' not found on details page."

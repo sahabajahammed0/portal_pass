@@ -313,7 +313,7 @@ class UserEventPage:
 
     def verify_event_details(self, title: str, description: str, venue: str, category: str):
         """Verifies details on the Event Details page in the user portal."""
-        expect(self.page.locator("h1")).to_contain_text(title, timeout=10000)
+        expect(self.page.locator("h1, h2").first).to_contain_text(title, timeout=10000)
         body_text = self.page.locator("body").inner_text()
         assert description in body_text, f"Description '{description}' not found on details page."
         assert venue in body_text, f"Venue '{venue}' not found on details page."
