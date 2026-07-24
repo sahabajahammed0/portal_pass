@@ -45,15 +45,25 @@ def shared_page(playwright):
     print("\n🔑 [Local Run] Launching shared browser session...")
     if headless:
         browser = playwright.chromium.launch(headless=True)
-        context = browser.new_context(viewport={"width": 1920, "height": 1080})
     else:
         browser = playwright.chromium.launch(headless=False, args=["--start-maximized"])
-        context = browser.new_context(no_viewport=True)
 
-    page = context.new_page()
+    context = None
+    page = None
     try:
         for attempt in range(1, 3):
             try:
+                # Close previous page/context if retrying to start fresh
+                if page:
+                    page.close()
+                if context:
+                    context.close()
+
+                if headless:
+                    context = browser.new_context(viewport={"width": 1920, "height": 1080})
+                else:
+                    context = browser.new_context(no_viewport=True)
+                page = context.new_page()
                 
                 page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
                 page.wait_for_selector("[data-testid='login-email-input']", timeout=25000)
@@ -62,7 +72,7 @@ def shared_page(playwright):
                 page.get_by_test_id("login-password-input").fill("Admin1234!")
                 page.get_by_test_id("login-submit-btn").click()
 
-                page.wait_for_url("**/dashboard**", timeout=20000)
+                page.wait_for_url("**/dashboard**", timeout=20000, wait_until="domcontentloaded")
                 expect(page.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
                 print("💾 [Local Run] Shared session authenticated successfully.")
                 break
@@ -74,9 +84,28 @@ def shared_page(playwright):
         yield page
 
     finally:
-        page.close()
-        context.close()
+        if page:
+            page.close()
+        if context:
+            context.close()
         browser.close()
+
+
+def setup_page_api_logger(page_obj):
+    def log_api_response(response):
+        try:
+            status = response.status
+            if status >= 400:
+                method = response.request.method
+                url = response.url
+                content_type = response.headers.get("content-type", "")
+                body = ""
+                if "application/json" in content_type or "text" in content_type:
+                    body = response.text()
+                print(f"\n❌ API ERROR: {method} {status} {url}\nResponse: {body}\n")
+        except Exception:
+            pass
+    page_obj.on("response", log_api_response)
 
 
 @pytest.fixture
@@ -99,15 +128,27 @@ def page(request, playwright):
         print("\n🔑 [CI Run] Launching isolated browser instance and performing login...")
         if headless:
             browser = playwright.chromium.launch(headless=True)
-            context = browser.new_context(viewport={"width": 1920, "height": 1080})
         else:
             browser = playwright.chromium.launch(headless=False, args=["--start-maximized"])
-            context = browser.new_context(no_viewport=True)
 
-        page_inst = context.new_page()
+        context = None
+        page_inst = None
         try:
             for attempt in range(1, 3):
                 try:
+                    # Close previous page/context if retrying to start fresh
+                    if page_inst:
+                        page_inst.close()
+                    if context:
+                        context.close()
+
+                    if headless:
+                        context = browser.new_context(viewport={"width": 1920, "height": 1080})
+                    else:
+                        context = browser.new_context(no_viewport=True)
+                    page_inst = context.new_page()
+                    setup_page_api_logger(page_inst)
+
                     page_inst.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
                     page_inst.wait_for_selector("[data-testid='login-email-input']", timeout=25000)
 
@@ -115,7 +156,7 @@ def page(request, playwright):
                     page_inst.get_by_test_id("login-password-input").fill("Admin1234!")
                     page_inst.get_by_test_id("login-submit-btn").click()
 
-                    page_inst.wait_for_url("**/dashboard**", timeout=20000)
+                    page_inst.wait_for_url("**/dashboard**", timeout=20000, wait_until="domcontentloaded")
                     expect(page_inst.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
                     print("💾 [CI Run] Authenticated successfully.")
                     break
@@ -123,9 +164,10 @@ def page(request, playwright):
                     print(f"⚠️ [CI Run] Login attempt {attempt}/2 failed: {error}")
                     if attempt == 2:
                         try:
-                            page_inst.screenshot(path="debug_login_page.png", full_page=True)
-                            with open("debug_login_page.html", "w", encoding="utf-8") as f:
-                                f.write(page_inst.content())
+                            if page_inst:
+                                page_inst.screenshot(path="debug_login_page.png", full_page=True)
+                                with open("debug_login_page.html", "w", encoding="utf-8") as f:
+                                    f.write(page_inst.content())
                         except Exception:
                             pass
                         raise
@@ -133,23 +175,35 @@ def page(request, playwright):
             yield page_inst
 
         finally:
-            page_inst.close()
-            context.close()
+            if page_inst:
+                page_inst.close()
+            if context:
+                context.close()
             browser.close()
     else:
         # Local run: Retrieve the shared, authenticated page
         shared_p = request.getfixturevalue("shared_page")
+        if not getattr(shared_p, "_api_logger_setup", False):
+            setup_page_api_logger(shared_p)
+            shared_p._api_logger_setup = True
         
-        # Navigate back to dashboard if we are not there
+        # Navigate back to dashboard if we are not on the admin portal
         if not shared_p.url.startswith(ADMIN_BASE_URL):
             shared_p.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=30000)
         else:
+            # If we are on the admin site, we don't need a full page reload.
+            # Press Escape to close any open drawers/dialogs and keep the state clean.
             try:
-                shared_p.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=20000)
+                shared_p.keyboard.press("Escape")
             except Exception:
-                shared_p.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=20000)
+                pass
 
-        expect(shared_p.get_by_role("link", name="Event Repository")).to_be_visible(timeout=20000)
+        try:
+            expect(shared_p.get_by_role("link", name="Event Repository")).to_be_visible(timeout=10000)
+        except Exception:
+            # Fallback in case of expired session or stuck state: go to dashboard/login
+            shared_p.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=20000)
+            expect(shared_p.get_by_role("link", name="Event Repository")).to_be_visible(timeout=15000)
         yield shared_p
 
 
