@@ -15,6 +15,7 @@ class CategoryManagement:
         self.edit_category_name = page.get_by_test_id("event-category-edit-name-input")
         self.update_save_btn = page.get_by_test_id("event-category-edit-update-btn")
         self.text_sucesfully_message = page.get_by_text("Category created successfully")
+        self.search_input = page.get_by_placeholder("Search categories")
         self.image_upload = page.locator('input[type="file"]')
         self.delete_button = page.get_by_role("button", name="Delete")
         self.place_category=page.get_by_test_id("category-place-tab-btn")
@@ -51,6 +52,11 @@ class CategoryManagement:
         self.create_save_btn.click()
 
     def verify_category_created(self, category_name: str):
+        """Search for the newly created category and verify it exists in the table."""
+        # After creation the category may land on any page — search to bring it into view.
+        if self.search_input.count() > 0:
+            self.search_input.fill(category_name)
+            self.page.wait_for_timeout(1000)
         row = self.page.locator("tbody tr").filter(has_text=category_name)
         expect(row).to_have_count(1)
     

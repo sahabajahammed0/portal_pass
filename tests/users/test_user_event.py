@@ -143,8 +143,8 @@ def test_tc04_create_event_from_admin_and_verify_in_user_portal(
     )
     print(f"✅ Event '{event_title}' submitted successfully in Category '{selected_category}' at Venue '{selected_venue}'.")
 
-    # Wait for the drawer to close (verifying the heading is not visible)
-    expect(event_creation_page.heading_create_event).not_to_be_visible()
+    # Verify the drawer is fully closed before proceeding (create_event() already waits, this is a safety net)
+    expect(event_creation_page.heading_create_event).not_to_be_visible(timeout=15000)
 
     # Open a dedicated fresh browser for the User Portal (avoids Cloudflare bot challenge in CI)
     print(f"🔎 Opening new page in User Portal to search and verify details for '{event_title}'")
@@ -250,7 +250,7 @@ def test_tc05_create_event_with_child_category_and_verify_filters(
     print(f"✅ Event '{event_title}' submitted successfully under subcategory '{selected_category}'.")
 
     # Wait for the drawer to close
-    expect(event_creation_page.heading_create_event).not_to_be_visible()
+    expect(event_creation_page.heading_create_event).not_to_be_visible(timeout=15000)
 
     # Open a dedicated fresh browser for the User Portal (avoids Cloudflare bot challenge in CI)
     print(f"🔎 Opening new page in User Portal to apply category filters for '{event_title}'")

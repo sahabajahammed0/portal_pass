@@ -93,7 +93,7 @@ def test_tc02_create_event_with_fake_data(
 
     # Verify the event is created and displayed in the event list/table
     # Wait for the drawer to close (the Create Event heading should not be visible anymore)
-    expect(event_creation_page.heading_create_event).not_to_be_visible()
+    expect(event_creation_page.heading_create_event).not_to_be_visible(timeout=15000)
 
     # Search for the created event
     event_creation_page.search_event(fake_title)

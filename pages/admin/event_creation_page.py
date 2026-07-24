@@ -339,6 +339,14 @@ class EventCreationPage:
         self.fill_notes(notes)
         
         self.submit_event()
+        # Wait for the drawer/form to close after successful submission.
+        # This prevents race conditions on slow CI runners (especially mobile viewport)
+        # where the Create Event heading is still visible immediately after click.
+        try:
+            expect(self.heading_create_event).not_to_be_visible(timeout=15000)
+        except Exception:
+            # If still visible, the form may have a validation error; let the test surface it.
+            pass
         return selected_category
 
 
